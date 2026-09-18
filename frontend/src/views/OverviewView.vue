@@ -30,7 +30,7 @@
         <article class="panel topics-panel">
           <div class="panel-heading"><div><div class="eyebrow">RANK / TOPIC COVERAGE</div><h2>Top 10 热门关键词</h2></div><span class="mono dim">最多 10 项</span></div>
           <div class="panel-body topic-list">
-            <button v-for="(topic, index) in topics" :key="topic.keyword" class="topic-row" type="button" @click="openTopic(topic.keyword)">
+            <button v-for="(topic, index) in topics" :key="topic.keyword" class="topic-row" type="button" :aria-label="`了解更多：${topic.keyword}`" @click="selectTopic(topic.keyword)">
               <span class="rank">{{ String(index + 1).padStart(2, '0') }}</span>
               <span class="topic-name">{{ topic.keyword }}</span>
               <span class="topic-count">{{ topic.papers }} 篇</span>
@@ -41,11 +41,13 @@
         </article>
 
         <article class="panel graph-panel">
-          <div class="panel-heading"><div><div class="eyebrow">NETWORK / CO-OCCURRENCE</div><h2>关键词关系图谱</h2></div><span class="mono dim">点击节点查看论文</span></div>
-          <div class="panel-body"><KeywordGraph :graph="graph" @select="openTopic" /></div>
+          <div class="panel-heading"><div><div class="eyebrow">NETWORK / CO-OCCURRENCE</div><h2>关键词关系图谱</h2></div><span class="mono dim">点击节点查看详情</span></div>
+          <div class="panel-body"><KeywordGraph :graph="graph" @select="selectTopic" /></div>
         </article>
       </section>
     </template>
+
+    <TopicInspectorDrawer :keyword="selectedTopic" :open="Boolean(selectedTopic)" @close="closeInspector" @select-related="selectTopic" @view-papers="viewTopicPapers" />
   </AppShell>
 </template>
 
@@ -57,6 +59,7 @@ import { getErrorMessage, statsApi } from "../api"
 import AppShell from "../components/AppShell.vue"
 import KeywordGraph from "../components/KeywordGraph.vue"
 import MetricCard from "../components/MetricCard.vue"
+import TopicInspectorDrawer from "../components/TopicInspectorDrawer.vue"
 import { formatHeat } from "../utils/filters"
 
 const router = useRouter()
@@ -65,6 +68,7 @@ const filters = reactive({ year_from: "", year_to: "" })
 const summary = ref({ total_papers: null, conference_count: 0, year_from: null, year_to: null })
 const topics = ref([])
 const graph = ref({ nodes: [], links: [] })
+const selectedTopic = ref("")
 const loading = ref(true)
 const error = ref("")
 const loadRequestId = ref(0)
@@ -116,8 +120,15 @@ function resetFilters() {
   Object.assign(filters, { year_from: "", year_to: "" })
   setConference("")
 }
-function openTopic(keyword) {
+function selectTopic(keyword) {
+  if (keyword) selectedTopic.value = keyword
+}
+function closeInspector() {
+  selectedTopic.value = ""
+}
+function viewTopicPapers(keyword) {
   router.push({ name: "papers", query: { ...route.query, keyword } })
+  closeInspector()
 }
 watch(() => [route.query.conference, filters.year_from, filters.year_to], load)
 onMounted(load)
