@@ -96,6 +96,9 @@ def list_papers(
     keyword: str | None,
     page: int,
     page_size: int,
+    *,
+    year_from: int | None = None,
+    year_to: int | None = None,
 ) -> PaperList:
     query = select(Paper)
     if q:
@@ -112,6 +115,10 @@ def list_papers(
         query = query.where(Paper.conference == conference)
     if year:
         query = query.where(Paper.year == year)
+    if year_from is not None:
+        query = query.where(Paper.year >= year_from)
+    if year_to is not None:
+        query = query.where(Paper.year <= year_to)
     if keyword:
         query = query.join(PaperKeyword).join(Keyword).where(Keyword.name == normalize_keyword(keyword))
     count = session.scalar(select(func.count()).select_from(query.subquery())) or 0
@@ -279,3 +286,5 @@ def export_papers(session: Session, export_format: str, q: str | None, conferenc
             output.write(f"  abstract = {{{escape(paper.abstract)}}},\n")
         output.write("}\n\n")
     return output.getvalue().encode("utf-8"), "application/x-bibtex; charset=utf-8"
+
+

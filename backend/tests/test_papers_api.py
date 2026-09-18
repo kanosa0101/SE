@@ -108,3 +108,21 @@ def test_lookup_without_configured_source_returns_explainable_error(client):
 
     assert response.status_code == 502
     assert "未配置" in response.json()["detail"]
+
+
+
+
+def test_paper_year_range_filter(client):
+    for year in (2020, 2023, 2025):
+        response = client.post(
+            "/api/papers",
+            json=paper_payload(f"Range Paper {year}") | {"year": year},
+        )
+        assert response.status_code == 201
+
+    response = client.get("/api/papers", params={"year_from": 2021, "year_to": 2024})
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["year"] == 2023
+

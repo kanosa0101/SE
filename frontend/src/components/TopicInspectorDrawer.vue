@@ -1,6 +1,6 @@
 <template>
   <aside v-if="open" class="inspector-backdrop" @click.self="$emit('close')">
-    <section class="inspector-drawer" role="dialog" aria-modal="true" :aria-label="`${keyword} 主题详情`" @keydown.esc="$emit('close')">
+    <section ref="drawerElement" class="inspector-drawer" tabindex="-1" role="dialog" aria-modal="true" :aria-label="`${keyword} 主题详情`" @keydown.esc="$emit('close')">
       <header class="inspector-head">
         <div>
           <div class="eyebrow">TOPIC / INSPECTOR</div>
@@ -72,7 +72,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from "vue"
+import { computed, nextTick, onMounted, ref, watch } from "vue"
 
 import { getErrorMessage, statsApi } from "../api"
 import { formatHeat } from "../utils/filters"
@@ -87,6 +87,8 @@ const details = ref(null)
 const loading = ref(false)
 const error = ref("")
 const loadRequestId = ref(0)
+const drawerElement = ref(null)
+const restoreFocusElement = ref(null)
 const maxConference = computed(() => Math.max(1, ...(details.value?.conference_breakdown || []).map((item) => Number(item.papers) || 0)))
 const maxYear = computed(() => Math.max(1, ...(details.value?.year_series || []).map((item) => Number(item.papers) || 0)))
 
@@ -113,6 +115,26 @@ async function load() {
   }
 }
 
+async function focusDrawer() {
+  if (typeof document === "undefined") return
+  if (drawerElement.value) {
+    if (document.activeElement !== drawerElement.value && !restoreFocusElement.value) {
+      restoreFocusElement.value = document.activeElement
+    }
+    drawerElement.value.focus()
+    return
+  }
+  if (!restoreFocusElement.value) restoreFocusElement.value = document.activeElement
+  await nextTick()
+  drawerElement.value?.focus()
+}
+
+function restoreFocus() {
+  const target = restoreFocusElement.value
+  restoreFocusElement.value = null
+  if (target && typeof target.focus === "function") target.focus()
+}
+
 function runLoad() {
   load().catch((cause) => {
     if (!props.open) return
@@ -122,15 +144,22 @@ function runLoad() {
   })
 }
 
-watch(() => [props.open, props.keyword], ([open, keyword]) => {
+watch(() => [props.open, props.keyword], async ([open, keyword], previous) => {
+  const wasOpen = Boolean(previous?.[0])
   if (!open || !keyword) {
     details.value = null
     error.value = ""
     loading.value = false
+    if (wasOpen && !open) restoreFocus()
     return
   }
+  if (!wasOpen) await focusDrawer()
   runLoad()
 }, { immediate: true })
+
+onMounted(() => {
+  if (props.open && props.keyword) focusDrawer()
+})
 </script>
 
 <style scoped>
@@ -177,5 +206,9 @@ watch(() => [props.open, props.keyword], ([open, keyword]) => {
 .muted { color: var(--text-dim); font-size: 12px; }
 @media (max-width: 600px) { .inspector-head { padding: 18px; } .drawer-content { padding: 16px 18px 24px; } }
 </style>
+
+
+
+
 
 

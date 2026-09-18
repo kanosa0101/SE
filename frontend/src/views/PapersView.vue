@@ -27,6 +27,12 @@
       <label>年份
         <input v-model.number="filters.year" class="field year-field" type="number" min="1990" max="2100" placeholder="不限" />
       </label>
+      <label>起始年
+        <input v-model.number="filters.year_from" class="field year-field" type="number" min="1990" max="2100" placeholder="不限" />
+      </label>
+      <label>结束年
+        <input v-model.number="filters.year_to" class="field year-field" type="number" min="1990" max="2100" placeholder="不限" />
+      </label>
       <label>精确关键词
         <input v-model.trim="filters.keyword" class="field" placeholder="可选" />
       </label>
@@ -117,6 +123,8 @@ function readRouteFilters() {
     q: typeof route.query.q === "string" ? route.query.q : "",
     conference: typeof route.query.conference === "string" ? route.query.conference : "",
     year: route.query.year ? Number(route.query.year) : "",
+    year_from: route.query.year_from ? Number(route.query.year_from) : "",
+    year_to: route.query.year_to ? Number(route.query.year_to) : "",
     keyword: typeof route.query.keyword === "string" ? route.query.keyword : "",
   }
 }
@@ -127,7 +135,7 @@ const items = ref([])
 const total = ref(0)
 const loading = ref(false)
 const error = ref("")
-const searched = ref(Boolean(filters.q || filters.conference || filters.year || filters.keyword))
+const searched = ref(Boolean(filters.q || filters.conference || filters.year || filters.year_from || filters.year_to || filters.keyword))
 const formVisible = ref(false)
 const editingPaper = ref(null)
 const detailPaper = ref(null)
@@ -142,7 +150,7 @@ const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize))
 
 function queryParams() {
   const params = { page: page.value, page_size: pageSize }
-  for (const key of ["q", "conference", "year", "keyword"]) {
+  for (const key of ["q", "conference", "year", "year_from", "year_to", "keyword"]) {
     if (filters[key] !== "" && filters[key] !== null && filters[key] !== undefined) params[key] = filters[key]
   }
   return params
@@ -177,7 +185,7 @@ async function search() {
   await load()
 }
 async function reset() {
-  Object.assign(filters, { q: "", conference: "", year: "", keyword: "" })
+  Object.assign(filters, { q: "", conference: "", year: "", year_from: "", year_to: "", keyword: "" })
   page.value = 1
   searched.value = false
   lookupPaper.value = null
@@ -258,10 +266,10 @@ function clearLookup() {
   lookupPaper.value = null
   lookupError.value = ""
 }
-watch(() => [route.query.q, route.query.conference, route.query.year, route.query.keyword], () => {
+watch(() => [route.query.q, route.query.conference, route.query.year, route.query.year_from, route.query.year_to, route.query.keyword], () => {
   Object.assign(filters, readRouteFilters())
   page.value = 1
-  searched.value = Boolean(filters.q || filters.conference || filters.year || filters.keyword)
+  searched.value = Boolean(filters.q || filters.conference || filters.year || filters.year_from || filters.year_to || filters.keyword)
   load()
 })
 onMounted(load)
@@ -270,7 +278,7 @@ onMounted(load)
 <style scoped>
 .page-head { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
 .page-actions, .search-actions { display: flex; gap: 8px; align-items: center; }
-.search-panel { display: grid; grid-template-columns: minmax(220px, 1.6fr) repeat(3, minmax(120px, 1fr)) auto; gap: 12px; align-items: end; padding: 16px; margin-bottom: 18px; }
+.search-panel { display: grid; grid-template-columns: minmax(220px, 1.6fr) repeat(5, minmax(120px, 1fr)) auto; gap: 12px; align-items: end; padding: 16px; margin-bottom: 18px; }
 .search-panel label { display: grid; gap: 5px; color: var(--text-soft); font-size: 12px; }
 .search-field { min-width: 0; }
 .year-field { max-width: 130px; }
@@ -301,4 +309,6 @@ onMounted(load)
 @media (max-width: 1100px) { .search-panel { grid-template-columns: 1fr 1fr; } .search-field { grid-column: 1 / -1; } }
 @media (max-width: 620px) { .page-head { display: block; } .page-actions { margin-top: 16px; } .search-panel { grid-template-columns: 1fr; } .search-field { grid-column: auto; } .result-bar, .lookup-prompt { display: block; } .lookup-prompt .button { margin-top: 14px; } }
 </style>
+
+
 

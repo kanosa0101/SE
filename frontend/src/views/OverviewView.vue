@@ -127,7 +127,11 @@ function closeInspector() {
   selectedTopic.value = ""
 }
 function viewTopicPapers(keyword) {
-  router.push({ name: "papers", query: { ...route.query, keyword } })
+  const query = { ...route.query, keyword }
+  for (const [name, value] of Object.entries(filters)) {
+    if (value !== "" && value !== null && value !== undefined) query[name] = value
+  }
+  router.push({ name: "papers", query })
   closeInspector()
 }
 watch(() => [route.query.conference, filters.year_from, filters.year_to], load)
@@ -154,3 +158,5 @@ onMounted(load)
 @media (max-width: 1100px) { .metrics-grid { grid-template-columns: repeat(2, 1fr); } .dashboard-grid { grid-template-columns: 1fr; } }
 @media (max-width: 620px) { .page-head { display: block; } .filter-bar { flex-wrap: wrap; } .metrics-grid { grid-template-columns: 1fr; } }
 </style>
+
+

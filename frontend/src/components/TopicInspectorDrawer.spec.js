@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { flushPromises, mount } from "@vue/test-utils"
+import { nextTick } from "vue"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const inspector = vi.hoisted(() => vi.fn())
@@ -59,4 +60,28 @@ describe("TopicInspectorDrawer", () => {
     expect(wrapper.text()).toContain("inspector unavailable")
     expect(wrapper.text()).toContain("重新加载")
   })
+  it("moves focus into the drawer and restores it on close", async () => {
+    const trigger = document.createElement("button")
+    document.body.appendChild(trigger)
+    trigger.focus()
+    inspector.mockResolvedValue({ data: payload })
+    const wrapper = mount(TopicInspectorDrawer, { props: { keyword: "transformer", open: true }, attachTo: document.body })
+
+    await flushPromises()
+    await nextTick()
+    expect(document.activeElement).toBe(wrapper.get(".inspector-drawer").element)
+
+    await wrapper.setProps({ open: false })
+    await flushPromises()
+    expect(document.activeElement).toBe(trigger)
+    wrapper.unmount()
+    trigger.remove()
+  })
+
 })
+
+
+
+
+
+

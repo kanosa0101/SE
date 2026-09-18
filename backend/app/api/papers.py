@@ -26,12 +26,24 @@ def read_papers(
     q: str | None = None,
     conference: str | None = Query(default=None, pattern="^(CVPR|ICCV|ECCV)$"),
     year: int | None = Query(default=None, ge=1990, le=2100),
+    year_from: int | None = Query(default=None, ge=1990, le=2100),
+    year_to: int | None = Query(default=None, ge=1990, le=2100),
     keyword: str | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=25, ge=1, le=100),
     db: Session = Depends(get_db),
 ) -> PaperList:
-    return list_papers(db, q, conference, year, keyword, page, page_size)
+    return list_papers(
+        db,
+        q,
+        conference,
+        year,
+        keyword,
+        page,
+        page_size,
+        year_from=year_from,
+        year_to=year_to,
+    )
 
 
 @router.get("/lookup", response_model=PaperCreate)
@@ -93,3 +105,5 @@ async def import_papers(file: UploadFile = File(...), db: Session = Depends(get_
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="当前仅支持 CSV 文件导入")
     return import_csv(db, await file.read())
+
+

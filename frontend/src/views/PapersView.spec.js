@@ -67,7 +67,7 @@ describe("PapersView", () => {
     })
     await flushPromises()
 
-    await router.push({ name: "papers", query: { q: "second", conference: "CVPR", year: "2023", keyword: "segmentation" } })
+    await router.push({ name: "papers", query: { q: "second", conference: "CVPR", year: "2023", year_from: "2021", year_to: "2024", keyword: "segmentation" } })
     await flushPromises()
     expect(api.list).toHaveBeenLastCalledWith({
       page: 1,
@@ -75,6 +75,8 @@ describe("PapersView", () => {
       q: "second",
       conference: "CVPR",
       year: 2023,
+      year_from: 2021,
+      year_to: 2024,
       keyword: "segmentation",
     })
   })
@@ -116,3 +118,5 @@ describe("PapersView", () => {
     expect(wrapper.find(".papers").text()).toBe("newer")
   })
 })
+
+
