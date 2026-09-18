@@ -3,6 +3,8 @@ from collections.abc import Generator
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
+from app.config import get_settings
+
 
 class Base(DeclarativeBase):
     pass
@@ -23,4 +25,13 @@ def session_factory(engine: Engine) -> sessionmaker[Session]:
 
 def session_dependency(factory: sessionmaker[Session]) -> Generator[Session, None, None]:
     with factory() as session:
+        yield session
+
+
+runtime_engine = make_engine(get_settings().database_url)
+RuntimeSession = session_factory(runtime_engine)
+
+
+def get_db() -> Generator[Session, None, None]:
+    with RuntimeSession() as session:
         yield session
