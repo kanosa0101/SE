@@ -113,3 +113,46 @@ class LookupResult(BaseModel):
     source: str | None = None
     paper: PaperCreate | None = None
     message: str
+
+
+class TopicRepresentativePaper(BaseModel):
+    paper_id: int
+    title: str
+    authors: str | None = None
+    conference: Conference
+    year: int
+    abstract: str | None = None
+    source: str
+    source_url: str | None = None
+
+
+class TopicInspector(BaseModel):
+    keyword: str
+    papers: int
+    heat: float
+    representative_papers: list[TopicRepresentativePaper]
+
+
+class EvolutionTopic(BaseModel):
+    keyword: str
+    papers: int
+    heat: float
+
+
+class EvolutionFrame(BaseModel):
+    year: int
+    topics: list[EvolutionTopic]
+
+
+class YearlyEvolution(BaseModel):
+    years: list[int]
+    frames: list[EvolutionFrame]
+
+
+class QualityAudit(BaseModel):
+    total: int
+    keyword_coverage: float
+    missing_fields: dict[str, int]
+
+
+ExportFormat = Literal["csv", "bibtex"]

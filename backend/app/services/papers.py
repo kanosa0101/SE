@@ -215,3 +215,46 @@ def import_csv(session: Session, content: bytes) -> ImportSummary:
             errors += 1
             results.append(ImportItemResult(row=index, title=title, status="error", message=str(exc)))
     return ImportSummary(total=created + skipped + errors, created=created, skipped=skipped, errors=errors, items=results)
+
+
+def export_papers(session: Session, export_format: str, q: str | None, conference: str | None, year: int | None, keyword: str | None) -> tuple[bytes, str]:
+    query = select(Paper).order_by(Paper.year.desc(), Paper.id.asc())
+    if q:
+        pattern = f"%{q.strip()}%"
+        query = query.outerjoin(PaperKeyword).outerjoin(Keyword).where(
+            or_(Paper.title.ilike(pattern), Paper.paper_code.ilike(pattern), Paper.authors.ilike(pattern), Keyword.name.ilike(pattern))
+        ).distinct()
+    if conference:
+        query = query.where(Paper.conference == conference)
+    if year:
+        query = query.where(Paper.year == year)
+    if keyword:
+        query = query.join(PaperKeyword).join(Keyword).where(Keyword.name == normalize_keyword(keyword))
+    papers = session.scalars(query).unique().all()
+    if export_format == "csv":
+        output = io.StringIO(newline="")
+        writer = csv.writer(output, lineterminator="\n")
+        writer.writerow(["title", "authors", "conference", "year", "abstract", "keywords", "source", "source_url"])
+        for paper in papers:
+            writer.writerow([paper.title, paper.authors or "", paper.conference, paper.year, paper.abstract or "", "|".join(sorted(relation.keyword.name for relation in paper.paper_keywords)), paper.source, paper.source_url or ""])
+        return output.getvalue().encode("utf-8"), "text/csv; charset=utf-8"
+    output = io.StringIO()
+    used_keys: dict[str, int] = {}
+    for paper in papers:
+        author = (paper.authors or "Unknown").split(",", 1)[0].strip().split()
+        surname = re.sub(r"[^A-Za-z0-9]", "", author[-1] if author else "Unknown") or "Unknown"
+        title_key = re.sub(r"[^A-Za-z0-9]", "", paper.title)
+        base_key = f"{surname}{paper.year}{title_key}"
+        used_keys[base_key] = used_keys.get(base_key, 0) + 1
+        key = base_key if used_keys[base_key] == 1 else f"{base_key}{used_keys[base_key]}"
+        def escape(value: str) -> str:
+            return value.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}").replace("\r", "").replace("\n", " ")
+        output.write(f"@inproceedings{{{key},\n")
+        output.write(f"  title = {{{escape(paper.title)}}},\n")
+        if paper.authors:
+            output.write(f"  author = {{{escape(paper.authors)}}},\n")
+        output.write(f"  booktitle = {{{escape(paper.conference)}}},\n  year = {{{paper.year}}},\n")
+        if paper.abstract:
+            output.write(f"  abstract = {{{escape(paper.abstract)}}},\n")
+        output.write("}\n\n")
+    return output.getvalue().encode("utf-8"), "application/x-bibtex; charset=utf-8"

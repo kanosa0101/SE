@@ -1,14 +1,16 @@
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
-from app.schemas import ImportSummary, PaperCreate, PaperList, PaperRead, PaperUpdate
+from app.schemas import ExportFormat, ImportSummary, PaperCreate, PaperList, PaperRead, PaperUpdate
 from app.services.lookup import LookupUnavailableError, lookup_title
 from app.services.papers import (
     DuplicatePaperError,
     create_paper,
     delete_paper,
+    export_papers,
     get_paper,
     import_csv,
     list_papers,
@@ -39,6 +41,19 @@ def lookup_paper(title: str = Query(min_length=1), settings=Depends(get_settings
     except LookupUnavailableError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+
+@router.get("/export")
+def export(
+    format: ExportFormat = Query(default="csv"),
+    q: str | None = None,
+    conference: str | None = Query(default=None, pattern="^(CVPR|ICCV|ECCV)$"),
+    year: int | None = Query(default=None, ge=1990, le=2100),
+    keyword: str | None = None,
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    content, media_type = export_papers(db, format, q, conference, year, keyword)
+    extension = "csv" if format == "csv" else "bib"
+    return StreamingResponse(iter([content]), media_type=media_type, headers={"Content-Disposition": f"attachment; filename=papers.{extension}"})
 
 @router.get("/{paper_id}", response_model=PaperRead)
 def read_paper(paper_id: int, db: Session = Depends(get_db)) -> PaperRead:

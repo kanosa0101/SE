@@ -1,13 +1,13 @@
 from collections import defaultdict
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import Keyword, Paper, PaperKeyword
-from app.services.metrics import build_cooccurrence_graph, calculate_heat
-
+from app.schemas import QualityAudit, TopicInspector, YearlyEvolution
+from app.services.metrics import build_cooccurrence_graph, build_quality_audit, build_topic_inspector, build_yearly_evolution, calculate_heat
 
 router = APIRouter(prefix="/api/stats", tags=["statistics"])
 
@@ -30,14 +30,14 @@ def _keyword_rows(
     year_to: int | None = None,
 ) -> list[dict]:
     statement = (
-        select(PaperKeyword.paper_id, Keyword.name, Paper.conference, Paper.year)
+        select(PaperKeyword.paper_id, Keyword.name, Paper.title, Paper.authors, Paper.abstract, Paper.conference, Paper.year, Paper.source, Paper.source_url)
         .join(Keyword, Keyword.id == PaperKeyword.keyword_id)
         .join(Paper, Paper.id == PaperKeyword.paper_id)
         .where(*_paper_conditions(conference, year_from, year_to))
     )
     return [
-        {"paper_id": paper_id, "keyword": keyword, "conference": venue, "year": year}
-        for paper_id, keyword, venue, year in db.execute(statement).all()
+        {"paper_id": paper_id, "keyword": keyword, "title": title, "authors": authors, "abstract": abstract, "conference": venue, "year": year, "source": source, "source_url": source_url}
+        for paper_id, keyword, title, authors, abstract, venue, year, source, source_url in db.execute(statement).all()
     ]
 
 
@@ -134,3 +134,28 @@ def trends(
             for keyword, data in sorted(series_map.items())
         ],
     }
+
+
+
+
+
+@router.get("/topics/{keyword}/inspector", response_model=TopicInspector)
+def topic_inspector(keyword: str, db: Session = Depends(get_db)) -> TopicInspector:
+    normalized = keyword.strip().lower()
+    rows = [row for row in _keyword_rows(db) if row["keyword"] == normalized]
+    if not rows:
+        raise HTTPException(status_code=404, detail="主题不存在")
+    total = db.scalar(select(func.count(Paper.id))) or 0
+    return build_topic_inspector(rows, normalized, total)
+
+
+@router.get("/evolution", response_model=YearlyEvolution)
+def evolution(limit: int = Query(default=10, ge=1, le=100), db: Session = Depends(get_db)) -> YearlyEvolution:
+    return build_yearly_evolution(_keyword_rows(db), limit)
+
+
+@router.get("/quality", response_model=QualityAudit)
+def quality(db: Session = Depends(get_db)) -> QualityAudit:
+    papers = db.scalars(select(Paper).order_by(Paper.id)).all()
+    rows = [{"abstract": paper.abstract, "authors": paper.authors, "source_url": paper.source_url, "keywords": paper.paper_keywords} for paper in papers]
+    return build_quality_audit(rows)
