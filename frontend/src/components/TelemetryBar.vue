@@ -10,9 +10,12 @@
 <script setup>
 import { computed } from "vue"
 
-const props = defineProps({ count: { type: [String, Number], default: 0 }, timezone: { type: String, default: "UTC+08" } })
+const props = defineProps({ count: { type: [String, Number], default: null }, timezone: { type: String, default: "UTC+08" } })
 defineEmits(["toggle-drawer", "threshold"])
-const countLabel = computed(() => Number(props.count).toLocaleString("en-US"))
+const countLabel = computed(() => {
+  const value = Number(props.count)
+  return props.count === null || props.count === undefined || props.count === "" || !Number.isFinite(value) ? "—" : value.toLocaleString("en-US")
+})
 </script>
 
 <style scoped>

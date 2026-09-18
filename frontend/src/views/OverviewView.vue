@@ -1,5 +1,5 @@
 <template>
-  <AppShell>
+  <AppShell :record-count="summary.total_papers">
     <div class="page-head">
       <div>
         <div class="eyebrow">OBSERVATORY / OVERVIEW</div>

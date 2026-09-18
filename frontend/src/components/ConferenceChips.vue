@@ -20,9 +20,9 @@ defineEmits(["update:modelValue"])
 
 const conferences = [
   { value: "all", label: "ALL", tone: "cyan" },
-  { value: "cvpr", label: "CVPR", tone: "amber" },
-  { value: "iccv", label: "ICCV", tone: "green" },
-  { value: "eccv", label: "ECCV", tone: "coral" },
+  { value: "cvpr", label: "CVPR", tone: "cyan" },
+  { value: "iccv", label: "ICCV", tone: "amber" },
+  { value: "eccv", label: "ECCV", tone: "green" },
 ]
 </script>
 

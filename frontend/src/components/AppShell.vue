@@ -1,7 +1,6 @@
 <template>
   <div class="page-shell">
     <header class="topbar">
-      <button class="mobile-menu" type="button" aria-label="Toggle navigation" @click="drawerOpen = !drawerOpen">☰</button>
       <RouterLink class="brand" to="/" aria-label="CVInsight Observatory home">
         <span class="brand-mark">CV</span>
         <span class="brand-copy"><strong>CVINSIGHT</strong><small>OBSERVATORY</small></span>
@@ -14,7 +13,7 @@
         </label>
         <ConferenceChips v-model="conference" />
       </div>
-      <TelemetryBar :count="recordCount" @toggle-drawer="drawerOpen = !drawerOpen" @threshold="emitThreshold" />
+      <TelemetryBar :count="props.recordCount" @toggle-drawer="drawerOpen = !drawerOpen" @threshold="emitThreshold" />
     </header>
 
     <aside class="sidebar" :class="{ open: drawerOpen }">
@@ -37,17 +36,18 @@
 </template>
 
 <script setup>
-import { ref } from "vue"
-import { RouterLink, useRouter } from "vue-router"
+import { ref, watch } from "vue"
+import { RouterLink, useRoute, useRouter } from "vue-router"
 
 import ConferenceChips from "./ConferenceChips.vue"
 import TelemetryBar from "./TelemetryBar.vue"
 
 const router = useRouter()
+const route = useRoute()
+const props = defineProps({ recordCount: { type: [String, Number], default: null } })
 const searchText = ref("")
-const conference = ref("all")
+const conference = ref(typeof route.query.conference === "string" ? route.query.conference.toLowerCase() : "all")
 const drawerOpen = ref(false)
-const recordCount = 12486
 const navItems = [
   { to: "/", label: "Overview / Signal", index: "01", glyph: "◈" },
   { to: "/trends", label: "Trend Observatory", index: "02", glyph: "⌁" },
@@ -55,6 +55,14 @@ const navItems = [
   { to: "/import", label: "Ingest / Parse", index: "04", glyph: "⇩" },
   { to: "/about", label: "Methods / About", index: "05", glyph: "◎" },
 ]
+
+async function syncConference(value) {
+  const query = { ...route.query }
+  if (value === "all") delete query.conference
+  else query.conference = value.toUpperCase()
+  await router.replace({ query })
+}
+watch(conference, syncConference)
 
 function search() {
   const query = searchText.value.trim()
@@ -68,7 +76,6 @@ function emitThreshold() {
 
 <style scoped>
 .topbar { position: fixed; z-index: 10; top: 0; right: 0; left: 0; display: flex; align-items: center; gap: 26px; height: var(--topbar-height); padding: 0 24px; border-bottom: 1px solid var(--line); background: rgba(9, 14, 24, .92); backdrop-filter: blur(18px); }
-.mobile-menu { display: none; border: 0; background: transparent; color: var(--cyan); font-size: 18px; }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 256px; }
 .brand-mark { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid var(--cyan); border-radius: var(--radius-sm); color: var(--cyan); font: 600 10px var(--mono); box-shadow: inset 0 0 14px rgba(76, 215, 246, .12); }
 .brand-copy { display: flex; align-items: baseline; gap: 8px; }
@@ -96,13 +103,14 @@ function emitThreshold() {
 .coordinates { color: var(--text-dim); font-size: 8px; }
 @media (max-width: 1100px) { .brand { min-width: 210px; } .conference-chips { display: none; } }
 @media (max-width: 900px) {
-  .topbar { gap: 10px; padding: 0 14px; }
-  .mobile-menu { display: block; }
-  .brand { min-width: 0; }
+  .topbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(140px, 2fr) auto; grid-template-areas: "brand search telemetry"; gap: 10px; padding: 0 14px; }
+  .brand { grid-area: brand; min-width: 0; }
   .brand-copy small { display: none; }
   .brand-copy strong { font-size: 11px; }
-  .search-cluster { order: 3; }
-  .global-search { max-width: none; }
+  .search-cluster { grid-area: search; width: 100%; }
+  .global-search { width: 100%; max-width: none; }
+  .search-shortcut { display: none; }
+  .telemetry-bar { grid-area: telemetry; }
   .sidebar { width: 58px; padding: 15px 8px; }
   .sidebar.open { width: 256px; box-shadow: 20px 0 40px rgba(0, 0, 0, .35); }
   .sidebar-label, .sidebar-foot, .nav-label { display: none; }
@@ -113,5 +121,9 @@ function emitThreshold() {
   .nav-index { display: none; }
   .sidebar.open .nav-index { display: block; }
   .main-content { margin-left: 58px; }
+}
+@media (max-width: 600px) {
+  .threshold-button, .profile-marker { display: none; }
+  .topbar { grid-template-columns: minmax(0, 1fr) minmax(120px, 2fr) auto; }
 }
 </style>
