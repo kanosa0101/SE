@@ -35,6 +35,7 @@ def test_parse_detail_extracts_cvf_metadata() -> None:
     assert record.conference == "CVPR"
     assert record.year == 2024
     assert record.abstract == "A concise abstract."
+    assert record.keywords == ["diffusion model", "vision-language model"]
     assert record.source_url == detail_url
     assert record.pdf_url is not None
     assert record.pdf_url.endswith(".pdf")

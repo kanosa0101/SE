@@ -57,7 +57,8 @@ class FakeCrawler:
                 ))
         self.manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
         return CrawlSummary(records=records[:limit] if limit is not None else records,
-                            skipped_events=["ICCV2023"], manifest_path=self.manifest_path)
+                            skipped_events=["ICCV2023"], manifest_path=self.manifest_path,
+                            discovered_pages=pages)
 
     def _cached(self, url):
         return any(entry.get("url") == url and entry.get("status") in {"fetched", "cached"}
@@ -75,7 +76,7 @@ def test_command_writes_schema_manifest_and_resumes_cached_details(tmp_path, mon
     assert list(rows[0]) == crawl_cvf.CSV_FIELDS
     assert rows[0]["source"] == "CVF"
     assert rows[0]["abstract"] == ""
-    assert rows[0]["keywords"] == "Learning; Vision"
+    assert rows[0]["keywords"] == "learning; vision"
     assert rows[0]["paper_code"] == "example"
     assert rows[0]["crawled_at"]
     assert FakeCrawler.detail_fetches == 7
@@ -146,3 +147,54 @@ def test_event_status_uses_newer_success_after_older_failure(tmp_path):
 
     manifest = json.loads(output.with_suffix(".manifest.json").read_text(encoding="utf-8"))
     assert manifest["events"] == [{"event": "CVPR2022", "url": "https://openaccess.thecvf.com/CVPR2022", "status": "complete"}]
+
+
+def test_current_summary_does_not_include_historical_detail_pages(tmp_path, monkeypatch):
+    class CurrentRunCrawler(FakeCrawler):
+        def crawl(self, conferences, years, limit=None, resume=False):
+            self.manifest_path.write_text(json.dumps([
+                {"url": "https://openaccess.thecvf.com/content/OLD/html/Old_paper.html", "status": "fetched"},
+                {"url": "https://openaccess.thecvf.com/content/CVPR2022/html/New_paper.html", "status": "fetched"},
+            ]), encoding="utf-8")
+            return CrawlSummary(records=[], failed_pages=[], skipped_events=[],
+                                manifest_path=self.manifest_path,
+                                discovered_pages=["https://openaccess.thecvf.com/content/CVPR2022/html/New_paper.html"])
+
+    output = tmp_path / "scoped.csv"
+    result = crawl_cvf.run(
+        crawl_cvf._parser().parse_args(["--venues", "CVPR", "--years", "2022",
+                                        "--out", str(output), "--cache", str(tmp_path / "cache")]),
+        crawler_factory=CurrentRunCrawler,
+    )
+
+    assert result["detail_discovered"] == 1
+    manifest = json.loads(output.with_suffix(".manifest.json").read_text(encoding="utf-8"))
+    assert [entry["url"] for entry in manifest["pages"]] == [
+        "https://openaccess.thecvf.com/content/CVPR2022/html/New_paper.html"
+    ]
+
+
+def test_parser_exposes_timeout_and_retry_options():
+    args = crawl_cvf._parser().parse_args(["--timeout", "7.5", "--max-retries", "5"])
+
+    assert args.timeout == 7.5
+    assert args.max_retries == 5
+
+
+def test_run_passes_timeout_and_retries_to_crawler(tmp_path):
+    captured = {}
+
+    class ConfigCrawler(FakeCrawler):
+        def __init__(self, cache_dir, **kwargs):
+            captured.update(kwargs)
+            super().__init__(cache_dir, **kwargs)
+
+    crawl_cvf.run(
+        crawl_cvf._parser().parse_args(["--venues", "CVPR", "--years", "2022", "--timeout", "7.5",
+                                        "--max-retries", "5", "--out", str(tmp_path / "out.csv"),
+                                        "--cache", str(tmp_path / "cache")]),
+        crawler_factory=ConfigCrawler,
+    )
+
+    assert captured["timeout"] == 7.5
+    assert captured["max_retries"] == 5

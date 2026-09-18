@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.crawlers.cvf import PARSER_VERSION, CrawlSummary, CvfCrawler, CvfRecord
+from app.services.keywords import normalize_keyword
 
 EVENT_CANDIDATES = [("CVPR", 2022), ("CVPR", 2023), ("CVPR", 2024), ("CVPR", 2025),
                     ("ICCV", 2023), ("ICCV", 2025), ("ECCV", 2022), ("ECCV", 2024)]
@@ -21,6 +22,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--cache", type=Path, default=Path("../data/raw/cvf"))
     parser.add_argument("--delay", type=float, default=0.25)
     parser.add_argument("--workers", type=int, default=4)
+    parser.add_argument("--timeout", type=float, default=20.0)
+    parser.add_argument("--max-retries", type=int, default=3)
     parser.add_argument("--limit", type=int)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
@@ -31,11 +34,8 @@ def _paper_code(source_url: str) -> str:
     return re.sub(r"[^A-Za-z0-9]+", "_", stem).strip("_").lower()
 
 def _keywords(values: list[str]) -> str:
-    unique = {}
-    for value in values:
-        clean = " ".join(value.split())
-        if clean: unique.setdefault(clean.casefold(), clean)
-    return "; ".join(unique[key] for key in sorted(unique))
+    normalized = {normalize_keyword(value) for value in values}
+    return "; ".join(sorted(value for value in normalized if value))
 
 def _atomic_csv(path: Path, rows: list[dict[str, object]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -67,8 +67,9 @@ def _event_entry(event, cache_manifest, skipped):
 def run(args: argparse.Namespace, crawler_factory=None) -> dict[str, object]:
     crawler_factory = crawler_factory or CvfCrawler
     selected = [(venue, year) for venue, year in EVENT_CANDIDATES if venue in args.venues and year in args.years]
-    records: list[CvfRecord] = []; skipped: set[str] = set(); failed_pages: set[str] = set()
-    with crawler_factory(args.cache, delay=args.delay, workers=args.workers) as crawler:
+    records: list[CvfRecord] = []; skipped: set[str] = set(); failed_pages: set[str] = set(); discovered_pages: set[str] = set()
+    with crawler_factory(args.cache, delay=args.delay, workers=args.workers,
+                         timeout=args.timeout, max_retries=args.max_retries) as crawler:
         for venue, year in selected:
             remaining = None if args.limit is None else max(args.limit - len(records), 0)
             summary: CrawlSummary = crawler.crawl([venue], [year], limit=remaining, resume=args.resume)
@@ -76,14 +77,22 @@ def run(args: argparse.Namespace, crawler_factory=None) -> dict[str, object]:
             if args.limit is not None: records = records[:args.limit]
             failed_pages.update(summary.failed_pages)
             skipped.update(summary.skipped_events)
+            discovered_pages.update(summary.discovered_pages)
     records_parsed = len(records)
     by_url = {}; duplicates = 0
     for record in records:
         if record.source_url in by_url: duplicates += 1
         else: by_url[record.source_url] = record
     records = list(by_url.values()); cache_manifest = _read_cache_manifest(args.cache / "manifest.json")
-    pages = [entry for entry in cache_manifest if "/content/" in entry.get("url", "")]
-    detail_urls = {entry["url"] for entry in pages}
+    pages = []
+    for url in sorted(discovered_pages):
+        matches = [entry for entry in cache_manifest if entry.get("url") == url]
+        timestamped = [entry for entry in matches if entry.get("recorded_at")]
+        if timestamped:
+            pages.append(max(timestamped, key=lambda entry: entry["recorded_at"]))
+        elif matches:
+            pages.append(matches[-1])
+    detail_urls = discovered_pages
     crawled_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     rows = [{"title": r.title, "paper_code": _paper_code(r.source_url), "abstract": r.abstract or "", "authors": r.authors or "",
              "conference": r.conference, "year": r.year, "source": "CVF", "source_url": r.source_url,

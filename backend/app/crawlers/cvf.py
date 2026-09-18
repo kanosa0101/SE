@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import tempfile
 import threading
 from datetime import datetime, timezone
@@ -17,6 +18,8 @@ from urllib.parse import urljoin
 
 import httpx
 from bs4 import BeautifulSoup
+
+from app.services.keywords import normalize_keyword
 
 
 PARSER_VERSION = "cvf-v1"
@@ -44,6 +47,7 @@ class CrawlSummary:
     failed_pages: list[str] = field(default_factory=list)
     skipped_events: list[str] = field(default_factory=list)
     manifest_path: Path | None = None
+    discovered_pages: list[str] = field(default_factory=list)
 
 
 def _text(node: object) -> str:
@@ -83,6 +87,20 @@ def parse_detail(html: str, conference: str, year: int, source_url: str) -> CvfR
             pdf_url = urljoin(source_url, href)
             break
 
+    raw_keywords: list[str] = []
+    for meta in soup.find_all("meta"):
+        name = (meta.get("name") or "").casefold()
+        if name in {"keywords", "citation_keywords"}:
+            content = meta.get("content")
+            if content:
+                raw_keywords.append(str(content))
+    for node in soup.select("#keywords, .keywords"):
+        value = _text(node)
+        if value:
+            raw_keywords.append(re.sub(r"^keywords?\s*:\s*", "", value, flags=re.IGNORECASE))
+    keywords = sorted({normalized for value in raw_keywords for item in re.split(r"[;,|]", value)
+                       if (normalized := normalize_keyword(item))})
+
     warnings: list[str] = []
     if abstract is None:
         warnings.append("missing_abstract")
@@ -97,7 +115,7 @@ def parse_detail(html: str, conference: str, year: int, source_url: str) -> CvfR
         year=year,
         source_url=source_url,
         pdf_url=pdf_url,
-        keywords=[],
+        keywords=keywords,
         parser_version=PARSER_VERSION,
         parse_warnings=warnings,
     )
@@ -152,6 +170,7 @@ class CvfCrawler:
         self._current_failed_urls: set[str] = set()
         self._current_event: str | None = None
         self._current_event_was_not_found = False
+        self._current_discovered_pages: set[str] = set()
 
     def _load_manifest(self) -> list[dict[str, str]]:
         if not self._manifest_path.exists():
@@ -281,6 +300,7 @@ class CvfCrawler:
         if skipped or index_html is None:
             return []
         detail_urls = parse_index(index_html, self.base_url)
+        self._current_discovered_pages.update(detail_urls)
         records: list[CvfRecord] = []
         with ThreadPoolExecutor(max_workers=self.workers) as executor:
             futures = {
@@ -312,6 +332,7 @@ class CvfCrawler:
     ) -> CrawlSummary:
         self._resume = resume
         self._current_failed_urls = set()
+        self._current_discovered_pages = set()
         records: list[CvfRecord] = []
         skipped_events: list[str] = []
         for conference in conferences:
@@ -327,12 +348,14 @@ class CvfCrawler:
                         failed_pages=sorted(self._current_failed_urls),
                         skipped_events=skipped_events,
                         manifest_path=self._manifest_path,
+                        discovered_pages=sorted(self._current_discovered_pages),
                     )
         return CrawlSummary(
             records=records,
             failed_pages=sorted(self._current_failed_urls),
             skipped_events=skipped_events,
             manifest_path=self._manifest_path,
+            discovered_pages=sorted(self._current_discovered_pages),
         )
 
     def _failed_urls(self) -> set[str]:
