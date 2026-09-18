@@ -1,0 +1,18 @@
+services:
+  cvinsight:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      CVINSIGHT_DATABASE_URL: sqlite:////var/lib/cvinsight/cvinsight.db
+      CVINSIGHT_FRONTEND_DIST: /app/frontend/dist
+      CVINSIGHT_LOOKUP_URL: ""
+      CVINSIGHT_CORS_ORIGINS: http://localhost:8000
+    volumes:
+      - cvinsight-data:/var/lib/cvinsight
+    restart: unless-stopped
+
+volumes:
+  cvinsight-data:
