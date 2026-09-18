@@ -30,6 +30,7 @@ def test_parse_detail_extracts_cvf_metadata() -> None:
     record = parse_detail(read_fixture("cvf_detail.html"), "CVPR", 2024, detail_url)
 
     assert record.title == "A Test Paper"
+    assert record.authors == "Alice Example and Bob Example"
     assert record.conference == "CVPR"
     assert record.year == 2024
     assert record.abstract == "A concise abstract."
@@ -182,3 +183,46 @@ def test_detail_future_exception_does_not_abort_other_pages(
 
     assert [record.source_url for record in summary.records] == [second]
     assert summary.failed_pages == [first]
+
+def test_injected_client_receives_descriptive_user_agent(tmp_path: Path) -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(404, request=request)
+
+    client = httpx.Client(
+        headers={"User-Agent": "test-client"}, transport=httpx.MockTransport(handler)
+    )
+    crawler = CvfCrawler(tmp_path, client=client, delay=0)
+    try:
+        crawler.crawl(["CVPR"], [2024])
+    finally:
+        crawler.close()
+
+    assert requests
+    assert requests[0].headers["user-agent"] == "CVInsight/1.0 (CVF metadata crawler)"
+
+
+def test_resume_controls_reuse_of_successful_cached_detail(tmp_path: Path) -> None:
+    detail_url = "https://example.test/content/CVPR2024/html/Test_paper.html"
+    detail_requests = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal detail_requests
+        if request.url.path == "/CVPR2024":
+            return httpx.Response(
+                200, text=f'<a href="{detail_url}">test</a>', request=request
+            )
+        detail_requests += 1
+        return httpx.Response(
+            200, text='<div id="papertitle">Title</div>', request=request
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    with CvfCrawler(tmp_path, base_url="https://example.test", client=client, delay=0) as crawler:
+        crawler.crawl(["CVPR"], [2024], resume=False)
+        crawler.crawl(["CVPR"], [2024], resume=True)
+        crawler.crawl(["CVPR"], [2024], resume=False)
+
+    assert detail_requests == 2

@@ -140,7 +140,9 @@ class CvfCrawler:
         self.client = client or httpx.Client(
             headers={"User-Agent": USER_AGENT}, timeout=timeout, follow_redirects=True
         )
+        self.client.headers["User-Agent"] = USER_AGENT
         self._owns_client = client is None
+        self._resume = False
         self._limiter = _RateLimiter(delay, sleeper)
         self._manifest_path = self.cache_dir / "manifest.json"
         self._manifest_lock = threading.Lock()
@@ -194,7 +196,12 @@ class CvfCrawler:
 
     def _fetch_html(self, url: str) -> tuple[str | None, bool]:
         cache_path = self._cache_path(url)
-        if cache_path.exists():
+        successful_cached = {
+            entry["url"]
+            for entry in self._manifest
+            if entry.get("status") in {"fetched", "cached"}
+        }
+        if cache_path.exists() and (self._resume or url not in successful_cached):
             try:
                 html = cache_path.read_text(encoding="utf-8")
             except (OSError, UnicodeError) as exc:
@@ -258,7 +265,7 @@ class CvfCrawler:
         limit: int | None = None,
         resume: bool = False,
     ) -> CrawlSummary:
-        del resume
+        self._resume = resume
         self._current_failed_urls = set()
         records: list[CvfRecord] = []
         skipped_events: list[str] = []
