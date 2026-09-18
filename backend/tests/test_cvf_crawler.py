@@ -1,11 +1,12 @@
 import hashlib
 import json
+import threading
 import time
 from pathlib import Path
 
 import httpx
 
-from app.crawlers.cvf import CvfCrawler, CvfRecord, parse_detail, parse_index
+from app.crawlers.cvf import CvfCrawler, CvfRecord, _RateLimiter, parse_detail, parse_index
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -163,6 +164,91 @@ def test_malformed_manifest_and_cached_html_are_recovered_as_failed_page(
     assert summary.failed_pages == [detail_url]
 
 
+def test_invalid_utf8_cache_is_recovered_as_failed_page(tmp_path: Path) -> None:
+    detail_url = "https://example.test/content/CVPR2024/html/Invalid_cache_paper.html"
+    cache_path = tmp_path / f"{hashlib.sha256(detail_url.encode()).hexdigest()}.html"
+    cache_path.write_text("not a CVF page", encoding="utf-8")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/CVPR2024":
+            return httpx.Response(200, text=f'<a href="{detail_url}">invalid</a>', request=request)
+        return httpx.Response(500, request=request)
+
+    with CvfCrawler(tmp_path, base_url="https://example.test",
+                    client=httpx.Client(transport=httpx.MockTransport(handler)),
+                    max_retries=0, delay=0) as crawler:
+        summary = crawler.crawl(["CVPR"], [2024])
+
+    assert summary.failed_pages == [detail_url]
+
+
+def test_manifest_snapshot_is_safe_while_workers_record_entries(tmp_path: Path) -> None:
+    crawler = CvfCrawler(tmp_path, delay=0)
+    errors: list[Exception] = []
+
+    def record(index: int) -> None:
+        try:
+            crawler._record_manifest(f"https://example.test/{index}", "fetched")
+        except Exception as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=record, args=(index,)) for index in range(24)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    crawler.close()
+
+    assert errors == []
+    manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
+    assert len(manifest) == 24
+    assert [entry["url"] for entry in manifest] == sorted(entry["url"] for entry in manifest)
+
+
+def test_retry_backoff_is_recorded_without_real_sleep(tmp_path: Path) -> None:
+    responses = [500, 500, 200]
+    sleeps: list[float] = []
+    detail_url = "https://example.test/content/CVPR2024/html/Retry_paper.html"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/CVPR2024":
+            return httpx.Response(200, text=f'<a href="{detail_url}">retry</a>', request=request)
+        return httpx.Response(responses.pop(0), text='<div id="papertitle">Title</div>', request=request)
+
+    with CvfCrawler(tmp_path, base_url="https://example.test",
+                    client=httpx.Client(transport=httpx.MockTransport(handler)),
+                    max_retries=2, delay=0, sleeper=sleeps.append) as crawler:
+        summary = crawler.crawl(["CVPR"], [2024])
+
+    assert len(summary.records) == 1
+    assert sleeps == [0.25, 0.5]
+
+
+def test_rate_limiter_releases_lock_before_sleep() -> None:
+    entered = threading.Event()
+    release = threading.Event()
+    sleeps: list[float] = []
+
+    def sleeper(delay: float) -> None:
+        sleeps.append(delay)
+        entered.set()
+        release.wait(timeout=1)
+
+    limiter = _RateLimiter(1, sleeper)
+    limiter.next_request = time.monotonic() + 1
+    first = threading.Thread(target=limiter.wait)
+    first.start()
+    assert entered.wait(timeout=1)
+    second = threading.Thread(target=limiter.wait)
+    second.start()
+    second.join(timeout=1)
+    release.set()
+    first.join(timeout=1)
+
+    assert not second.is_alive()
+    assert len(sleeps) == 2
+
+
 def test_detail_future_exception_does_not_abort_other_pages(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -211,16 +297,25 @@ def test_injected_client_receives_descriptive_user_agent(tmp_path: Path) -> None
         return httpx.Response(404, request=request)
 
     client = httpx.Client(
-        headers={"User-Agent": "test-client"}, transport=httpx.MockTransport(handler)
+        headers={"User-Agent": "test-client", "X-Caller": "kept"},
+        transport=httpx.MockTransport(handler),
     )
     crawler = CvfCrawler(tmp_path, client=client, delay=0)
-    try:
-        crawler.crawl(["CVPR"], [2024])
-    finally:
-        crawler.close()
+    crawler.crawl(["CVPR"], [2024])
+    crawler.close()
 
     assert requests
     assert requests[0].headers["user-agent"] == "CVInsight/1.0 (CVF metadata crawler)"
+    assert requests[0].headers["x-caller"] == "kept"
+    assert client.is_closed is False
+
+
+def test_internal_client_is_closed_by_crawler(tmp_path: Path) -> None:
+    crawler = CvfCrawler(tmp_path, delay=0)
+    client = crawler.client
+    crawler.close()
+
+    assert client.is_closed is True
 
 
 def test_resume_controls_reuse_of_successful_cached_detail(tmp_path: Path) -> None:

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -140,7 +142,6 @@ class CvfCrawler:
         self.client = client or httpx.Client(
             headers={"User-Agent": USER_AGENT}, timeout=timeout, follow_redirects=True
         )
-        self.client.headers["User-Agent"] = USER_AGENT
         self._owns_client = client is None
         self._resume = False
         self._limiter = _RateLimiter(delay, sleeper)
@@ -174,6 +175,22 @@ class CvfCrawler:
             manifest.append(clean_entry)
         return manifest
 
+    def _write_atomic(self, path: Path, content: str) -> None:
+        fd, temporary_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+        temporary_path = Path(temporary_name)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
+                handle.write(content)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary_path, path)
+        finally:
+            temporary_path.unlink(missing_ok=True)
+
+    def _manifest_snapshot(self) -> list[dict[str, str]]:
+        with self._manifest_lock:
+            return [entry.copy() for entry in self._manifest]
+
     def _record_manifest(self, url: str, status: str, error: str | None = None) -> None:
         entry = {"url": url, "status": status}
         if error:
@@ -189,24 +206,40 @@ class CvfCrawler:
             )
             if status == "failed":
                 self._current_failed_urls.add(url)
-            self._manifest_path.write_text(
-                json.dumps(self._manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+            self._write_atomic(
+                self._manifest_path,
+                json.dumps(self._manifest, ensure_ascii=False, indent=2),
             )
 
     def _cache_path(self, url: str) -> Path:
         return self.cache_dir / f"{hashlib.sha256(url.encode('utf-8')).hexdigest()}.html"
 
+    def _is_valid_cached_html(self, url: str, html: str) -> bool:
+        if not html.strip():
+            return False
+        soup = BeautifulSoup(html, "html.parser")
+        if soup.find() is None:
+            return False
+        if "/content/" in url:
+            return bool(
+                soup.select_one("#papertitle, #authors, #abstract")
+                or soup.select_one('a[href$=".pdf"]')
+            )
+        return bool(soup.select('a[href*="/content/"]') or soup.body)
+
     def _fetch_html(self, url: str) -> tuple[str | None, bool]:
         cache_path = self._cache_path(url)
         successful_cached = {
             entry["url"]
-            for entry in self._manifest
+            for entry in self._manifest_snapshot()
             if entry.get("status") in {"fetched", "cached"}
         }
         if cache_path.exists() and (self._resume or url not in successful_cached):
             try:
                 html = cache_path.read_text(encoding="utf-8")
-            except (OSError, UnicodeError) as exc:
+                if not self._is_valid_cached_html(url, html):
+                    raise ValueError("invalid cached HTML")
+            except (OSError, UnicodeError, ValueError) as exc:
                 self._record_manifest(url, "failed", str(exc))
                 return None, False
             self._record_manifest(url, "cached")
@@ -216,13 +249,13 @@ class CvfCrawler:
         for attempt in range(self.max_retries + 1):
             try:
                 self._limiter.wait()
-                response = self.client.get(url)
+                response = self.client.get(url, headers={"User-Agent": USER_AGENT})
                 if response.status_code == 404:
                     self._record_manifest(url, "not_found")
                     return None, True
                 response.raise_for_status()
                 html = response.text
-                cache_path.write_text(html, encoding="utf-8")
+                self._write_atomic(cache_path, html)
                 self._record_manifest(url, "fetched")
                 return html, False
             except (httpx.HTTPError, OSError, UnicodeError) as exc:
@@ -298,7 +331,7 @@ class CvfCrawler:
     def _failed_urls(self) -> set[str]:
         return {
             entry["url"]
-            for entry in self._manifest
+            for entry in self._manifest_snapshot()
             if entry.get("status") == "failed"
         }
 
