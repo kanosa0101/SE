@@ -61,7 +61,7 @@ import { formatHeat } from "../utils/filters"
 
 const router = useRouter()
 const filters = reactive({ conference: "", year_from: "", year_to: "" })
-const summary = ref({ total_papers: 0, conference_count: 0, year_from: null, year_to: null })
+const summary = ref({ total_papers: null, conference_count: 0, year_from: null, year_to: null })
 const topics = ref([])
 const graph = ref({ nodes: [], links: [] })
 const loading = ref(true)
@@ -71,7 +71,10 @@ const yearRange = computed(() => {
   if (!summary.value.year_from || !summary.value.year_to) return "—"
   return String(summary.value.year_from) + " — " + String(summary.value.year_to)
 })
-function formatNumber(value) { return new Intl.NumberFormat("zh-CN").format(Number(value || 0)) }
+function formatNumber(value) {
+  if (value === null || value === undefined || value === "") return "—"
+  return new Intl.NumberFormat("zh-CN").format(Number(value))
+}
 function queryParams() {
   return Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== "" && value !== null && value !== undefined))
 }
@@ -89,6 +92,7 @@ async function load() {
     topics.value = topicsResponse.data
     graph.value = graphResponse.data
   } catch (cause) {
+    summary.value = { ...summary.value, total_papers: null }
     error.value = getErrorMessage(cause, "统计接口暂时不可用")
   } finally {
     loading.value = false

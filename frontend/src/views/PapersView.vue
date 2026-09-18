@@ -102,7 +102,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue"
+import { computed, onMounted, reactive, ref, watch } from "vue"
 import { useRoute, useRouter } from "vue-router"
 
 import { getErrorMessage, papersApi } from "../api"
@@ -251,6 +251,14 @@ function clearLookup() {
   lookupPaper.value = null
   lookupError.value = ""
 }
+watch(() => route.query.conference, (value) => {
+  const conference = typeof value === "string" ? value : ""
+  if (filters.conference === conference) return
+  filters.conference = conference
+  page.value = 1
+  searched.value = Boolean(filters.q || filters.conference || filters.year || filters.keyword)
+  load()
+})
 onMounted(load)
 </script>
 
