@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import Keyword, Paper, PaperKeyword
 from app.schemas import QualityAudit, TopicInspector, YearlyEvolution
+from app.services.keywords import normalize_keyword
 from app.services.metrics import build_cooccurrence_graph, build_quality_audit, build_topic_inspector, build_yearly_evolution, calculate_heat
 
 router = APIRouter(prefix="/api/stats", tags=["statistics"])
@@ -141,7 +142,7 @@ def trends(
 
 @router.get("/topics/{keyword}/inspector", response_model=TopicInspector)
 def topic_inspector(keyword: str, db: Session = Depends(get_db)) -> TopicInspector:
-    normalized = keyword.strip().lower()
+    normalized = normalize_keyword(keyword)
     all_rows = _keyword_rows(db)
     rows = [row for row in all_rows if row["keyword"] == normalized]
     if not rows:

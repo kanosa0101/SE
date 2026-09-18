@@ -229,7 +229,15 @@ def export_papers(session: Session, export_format: str, q: str | None, conferenc
     if year:
         query = query.where(Paper.year == year)
     if keyword:
-        query = query.join(PaperKeyword).join(Keyword).where(Keyword.name == normalize_keyword(keyword))
+        normalized_keyword = normalize_keyword(keyword)
+        if q:
+            query = query.where(
+                Paper.paper_keywords.any(
+                    PaperKeyword.keyword.has(Keyword.name == normalized_keyword)
+                )
+            )
+        else:
+            query = query.join(PaperKeyword).join(Keyword).where(Keyword.name == normalized_keyword)
     papers = session.scalars(query).unique().all()
     if export_format == "csv":
         output = io.StringIO(newline="")
@@ -248,7 +256,20 @@ def export_papers(session: Session, export_format: str, q: str | None, conferenc
         used_keys[base_key] = used_keys.get(base_key, 0) + 1
         key = base_key if used_keys[base_key] == 1 else f"{base_key}{used_keys[base_key]}"
         def escape(value: str) -> str:
-            return value.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}").replace("\r", "").replace("\n", " ")
+            replacements = {
+                "\\": r"\textbackslash{}",
+                "{": r"\{",
+                "}": r"\}",
+                "%": r"\%",
+                "_": r"\_",
+                "&": r"\&",
+                "#": r"\#",
+                "$": r"\$",
+                "^": r"\^{}",
+                "~": r"\~{}",
+            }
+            value = value.replace("\r\n", "\n").replace("\r", "\n")
+            return "".join(replacements.get(character, " " if character == "\n" else character) for character in value)
         output.write(f"@inproceedings{{{key},\n")
         output.write(f"  title = {{{escape(paper.title)}}},\n")
         if paper.authors:

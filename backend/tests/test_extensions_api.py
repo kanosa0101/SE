@@ -50,6 +50,24 @@ def test_topic_inspector_returns_keyword_and_representative_papers(client):
     assert body["related_keywords"][0]["keyword"] == "attention"
 
 
+def test_topic_inspector_normalizes_aliases(client):
+    response = client.post(
+        "/api/papers",
+        json={
+            "title": "Vision Language Models",
+            "conference": "CVPR",
+            "year": 2024,
+            "keywords": ["vision-language model"],
+        },
+    )
+    assert response.status_code == 201
+
+    response = client.get("/api/stats/topics/vision language models/inspector")
+
+    assert response.status_code == 200
+    assert response.json()["keyword"] == "vision-language model"
+
+
 def test_topic_inspector_returns_404_for_unknown_keyword(client):
     response = client.get("/api/stats/topics/does-not-exist/inspector")
 
@@ -137,6 +155,17 @@ def test_csv_export_has_stable_header_and_conference_filter(client):
     assert len(rows) == 3
 
 
+def test_bibtex_export_combined_q_and_keyword_filter(client):
+    seed_transformer_papers(client)
+
+    response = client.get(
+        "/api/papers/export",
+        params={"format": "bibtex", "q": "vision", "keyword": "vision"},
+    )
+
+    assert response.status_code == 200
+
+
 def test_bibtex_export_uses_deterministic_keys(client):
     seed_transformer_papers(client)
 
@@ -145,6 +174,27 @@ def test_bibtex_export_uses_deterministic_keys(client):
     assert response.status_code == 200
     assert "@inproceedings{Smith2024TransformerVision," in response.text
     assert "@inproceedings{Jones2022OlderTransformerStudy," in response.text
+
+
+def test_bibtex_export_escapes_latex_sensitive_characters(client):
+    response = client.post(
+        "/api/papers",
+        json={
+            "title": "A {B} 50%_& #$^~\\ study\nnext",
+            "conference": "CVPR",
+            "year": 2024,
+            "authors": "A_uthor & Co\\Author",
+            "abstract": "Line one\nLine two\r\nLine three",
+        },
+    )
+    assert response.status_code == 201
+
+    response = client.get("/api/papers/export", params={"format": "bibtex"})
+
+    assert response.status_code == 200
+    assert r"title = {A \{B\} 50\%\_\& \#\$\^{}\~{}\textbackslash{} study next}," in response.text
+    assert r"author = {A\_uthor \& Co\textbackslash{}Author}," in response.text
+    assert "abstract = {Line one Line two Line three}," in response.text
 
 
 def test_export_rejects_unknown_format(client):
