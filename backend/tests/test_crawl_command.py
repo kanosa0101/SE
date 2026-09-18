@@ -233,12 +233,36 @@ def test_publication_failure_does_not_leave_mismatched_csv_and_manifest(tmp_path
 
 @pytest.mark.parametrize(
     ("option", "value"),
-    [("--delay", "-0.1"), ("--timeout", "0"), ("--workers", "0"),
+    [("--delay", "-0.1"), ("--delay", "nan"), ("--delay", "inf"),
+     ("--timeout", "0"), ("--timeout", "nan"), ("--timeout", "-inf"), ("--workers", "0"),
      ("--max-retries", "-1"), ("--limit", "0")],
 )
 def test_parser_rejects_invalid_numeric_values(option, value):
     with pytest.raises(SystemExit):
         crawl_cvf._parser().parse_args([option, value])
+
+
+def test_run_stops_before_invoking_events_after_limit(tmp_path):
+    calls = []
+
+    class LimitedCrawler(FakeCrawler):
+        def crawl(self, conferences, years, limit=None, resume=False):
+            calls.append((conferences, years, limit))
+            event = f"{conferences[0]}{years[0]}"
+            record = CvfRecord(title="A paper", authors="A. Author", abstract="Abstract",
+                                conference=conferences[0], year=years[0],
+                                source_url=f"https://openaccess.thecvf.com/content/{event}/html/A_paper.html",
+                                pdf_url=None, keywords=[], parser_version="cvf-v1", parse_warnings=[])
+            return CrawlSummary(records=[record], failed_pages=[], skipped_events=[], discovered_pages=[])
+
+    output = tmp_path / "limited.csv"
+    crawl_cvf.run(crawl_cvf._parser().parse_args([
+        "--venues", "CVPR", "--years", "2022", "2023", "--limit", "1",
+        "--out", str(output), "--cache", str(tmp_path / "cache")]), crawler_factory=LimitedCrawler)
+
+    assert calls == [(["CVPR"], [2022], 1)]
+    manifest = json.loads(output.with_suffix(".manifest.json").read_text(encoding="utf-8"))
+    assert manifest["events"][1]["reason"] == "limit reached"
 
 
 def test_real_crawler_network_failure_does_not_publish_synthetic_output(tmp_path):

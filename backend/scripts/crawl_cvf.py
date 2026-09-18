@@ -1,6 +1,6 @@
 """Command-line crawl orchestration for CVF Open Access metadata."""
 from __future__ import annotations
-import argparse, csv, io, json, os, re, sys, tempfile
+import argparse, csv, io, json, math, os, re, sys, tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -16,28 +16,28 @@ CSV_FIELDS = ["title", "paper_code", "abstract", "authors", "conference", "year"
 
 def _non_negative_float(value: str) -> float:
     parsed = float(value)
-    if parsed < 0:
+    if not math.isfinite(parsed) or parsed < 0:
         raise argparse.ArgumentTypeError("must be non-negative")
     return parsed
 
 
 def _positive_float(value: str) -> float:
     parsed = float(value)
-    if parsed <= 0:
+    if not math.isfinite(parsed) or parsed <= 0:
         raise argparse.ArgumentTypeError("must be positive")
     return parsed
 
 
 def _non_negative_int(value: str) -> int:
     parsed = int(value)
-    if parsed < 0:
+    if not math.isfinite(parsed) or parsed < 0:
         raise argparse.ArgumentTypeError("must be non-negative")
     return parsed
 
 
 def _positive_int(value: str) -> int:
     parsed = int(value)
-    if parsed <= 0:
+    if not math.isfinite(parsed) or parsed <= 0:
         raise argparse.ArgumentTypeError("must be positive")
     return parsed
 
@@ -143,8 +143,10 @@ def _read_cache_manifest(path: Path) -> list[dict[str, str]]:
     except (OSError, UnicodeError, json.JSONDecodeError): return []
     return [entry for entry in data if isinstance(entry, dict) and isinstance(entry.get("url"), str)] if isinstance(data, list) else []
 
-def _event_entry(event, cache_manifest, skipped):
+def _event_entry(event, cache_manifest, skipped, limited):
     venue, year = event; name = f"{venue}{year}"; url = f"https://openaccess.thecvf.com/{name}"
+    if name in limited:
+        return {"event": name, "url": url, "status": "skipped", "reason": "limit reached"}
     matches = [entry for entry in cache_manifest if entry.get("url") == url]
     timestamped = [entry for entry in matches if entry.get("recorded_at")]
     latest = max(timestamped, key=lambda entry: entry["recorded_at"]) if timestamped else (matches[-1] if matches else {})
@@ -157,7 +159,7 @@ def _event_entry(event, cache_manifest, skipped):
 def run(args: argparse.Namespace, crawler_factory=None) -> dict[str, object]:
     crawler_factory = crawler_factory or CvfCrawler
     selected = [(venue, year) for venue, year in EVENT_CANDIDATES if venue in args.venues and year in args.years]
-    records: list[CvfRecord] = []; skipped: set[str] = set(); failed_pages: set[str] = set(); discovered_pages: set[str] = set()
+    records: list[CvfRecord] = []; skipped: set[str] = set(); limited: set[str] = set(); failed_pages: set[str] = set(); discovered_pages: set[str] = set()
     with crawler_factory(args.cache, delay=args.delay, workers=args.workers,
                          timeout=args.timeout, max_retries=args.max_retries) as crawler:
         for venue, year in selected:
@@ -168,6 +170,9 @@ def run(args: argparse.Namespace, crawler_factory=None) -> dict[str, object]:
             failed_pages.update(summary.failed_pages)
             skipped.update(summary.skipped_events)
             discovered_pages.update(summary.discovered_pages)
+            if args.limit is not None and len(records) >= args.limit:
+                limited.update(f"{v}{y}" for v, y in selected[selected.index((venue, year)) + 1:])
+                break
     if failed_pages and not records:
         raise RuntimeError(f"crawl failed for {len(failed_pages)} page(s); refusing to publish outputs")
     records_parsed = len(records)
@@ -190,7 +195,7 @@ def run(args: argparse.Namespace, crawler_factory=None) -> dict[str, object]:
              "conference": r.conference, "year": r.year, "source": "CVF", "source_url": r.source_url,
              "keywords": _keywords(r.keywords), "crawled_at": crawled_at, "parser_version": r.parser_version or PARSER_VERSION} for r in records]
     manifest_path = args.out.with_suffix(".manifest.json")
-    manifest = {"parser_version": PARSER_VERSION, "events": [_event_entry(event, cache_manifest, skipped) for event in selected], "pages": pages}
+    manifest = {"parser_version": PARSER_VERSION, "events": [_event_entry(event, cache_manifest, skipped, limited) for event in selected], "pages": pages}
     if not args.dry_run:
         _atomic_publish_pair(args.out, _csv_content(rows), manifest_path,
                              json.dumps(manifest, ensure_ascii=False, indent=2))
