@@ -1,5 +1,21 @@
 * { box-sizing: border-box; }
 
+:root {
+  --ink-on-primary: #06242c;
+  --overlay-grid: rgba(76, 215, 246, 0.035);
+  --overlay-cyan-glow: rgba(6, 182, 212, 0.08);
+  --overlay-panel: rgba(22, 28, 38, 0.92);
+  --overlay-green-glow: rgba(78, 222, 163, 0.7);
+  --overlay-danger-border: rgba(255, 180, 171, 0.4);
+  --overlay-danger: rgba(147, 0, 10, 0.18);
+  --overlay-cyan-focus: rgba(76, 215, 246, 0.1);
+  --overlay-topbar: rgba(9, 14, 24, 0.92);
+  --overlay-cyan-brand: rgba(76, 215, 246, 0.12);
+  --overlay-cyan-active: rgba(76, 215, 246, 0.2);
+  --overlay-sidebar: rgba(14, 19, 30, 0.95);
+  --overlay-drawer-shadow: rgba(0, 0, 0, 0.35);
+}
+
 html, body, #app { min-height: 100%; margin: 0; }
 
 body {
@@ -19,9 +35,9 @@ a { color: inherit; text-decoration: none; }
 .page-shell {
   min-height: 100vh;
   background:
-    linear-gradient(rgba(76, 215, 246, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(76, 215, 246, 0.035) 1px, transparent 1px),
-    radial-gradient(circle at 72% 8%, rgba(6, 182, 212, 0.08), transparent 28rem),
+    linear-gradient(var(--overlay-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--overlay-grid) 1px, transparent 1px),
+    radial-gradient(circle at 72% 8%, var(--overlay-cyan-glow), transparent 28rem),
     var(--surface);
   background-size: 32px 32px, 32px 32px, auto, auto;
 }
@@ -31,7 +47,7 @@ a { color: inherit; text-decoration: none; }
 .eyebrow { color: var(--cyan); font: 600 11px/1.4 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
 .page-title { margin: 7px 0 0; color: var(--text); font: 600 clamp(28px, 4vw, 48px)/1.1 var(--serif); letter-spacing: -.03em; }
 .page-intro { max-width: 720px; margin: 12px 0 0; color: var(--text-soft); }
-.panel { border: 1px solid var(--line); border-radius: var(--radius-lg); background: rgba(22, 28, 38, .92); box-shadow: var(--shadow); }
+.panel { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--overlay-panel); box-shadow: var(--shadow); }
 .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 20px; border-bottom: 1px solid var(--line); }
 .panel-heading h2, .panel-heading h3 { margin: 0; font: 600 18px/1.35 var(--serif); }
 .panel-body { padding: 20px; }
@@ -39,14 +55,14 @@ a { color: inherit; text-decoration: none; }
 .dim { color: var(--text-dim); }
 .mono { font-family: var(--mono); }
 .status-line { display: flex; align-items: center; gap: 8px; color: var(--text-soft); font: 12px var(--mono); }
-.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 12px rgba(78, 222, 163, .7); }
-.button { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; gap: 8px; padding: 0 14px; border: 1px solid transparent; border-radius: var(--radius-sm); background: var(--cyan); color: #06242c; font-weight: 700; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 12px var(--overlay-green-glow); }
+.button { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; gap: 8px; padding: 0 14px; border: 1px solid transparent; border-radius: var(--radius-sm); background: var(--cyan); color: var(--ink-on-primary); font-weight: 700; }
 .button:hover { filter: brightness(1.1); }
 .button.secondary { border-color: var(--line); background: var(--surface-container-high); color: var(--text); }
-.button.danger { border-color: rgba(255, 180, 171, .4); background: rgba(147, 0, 10, .18); color: var(--coral); }
+.button.danger { border-color: var(--overlay-danger-border); background: var(--overlay-danger); color: var(--coral); }
 .button:disabled { cursor: not-allowed; opacity: .5; }
 .field, .select { width: 100%; min-height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); outline: none; background: var(--surface-container-low); color: var(--text); }
-.field:focus, .select:focus, textarea.field:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(76, 215, 246, .1); }
+.field:focus, .select:focus, textarea.field:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px var(--overlay-cyan-focus); }
 textarea.field { min-height: 110px; padding-top: 10px; resize: vertical; }
 .error-box, .empty-box, .loading-box { padding: 28px; border: 1px dashed var(--line-strong); border-radius: var(--radius-md); color: var(--text-soft); text-align: center; }
 

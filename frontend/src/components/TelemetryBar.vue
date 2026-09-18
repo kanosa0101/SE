@@ -1,6 +1,6 @@
 <template>
   <div class="telemetry-bar">
-    <button class="drawer-toggle" type="button" aria-label="Toggle navigation" @click="$emit('toggle-drawer')">☰</button>
+    <button class="drawer-toggle" type="button" aria-label="Toggle navigation" :aria-expanded="props.drawerOpen" :aria-controls="props.drawerId" @click="$emit('toggle-drawer')">☰</button>
     <div class="telemetry-count"><span class="signal" />{{ countLabel }} <span class="count-unit">RECORDS INDEXED</span></div>
     <button class="threshold-button" type="button" @click="$emit('threshold')"><span class="live-dot" />{{ timezone }} / LIVE</button>
     <span class="profile-marker" aria-label="Profile">CI</span>
@@ -10,7 +10,12 @@
 <script setup>
 import { computed } from "vue"
 
-const props = defineProps({ count: { type: [String, Number], default: null }, timezone: { type: String, default: "UTC+08" } })
+const props = defineProps({
+  count: { type: [String, Number], default: null },
+  timezone: { type: String, default: "UTC+08" },
+  drawerOpen: { type: Boolean, default: false },
+  drawerId: { type: String, default: "observatory-sidebar" },
+})
 defineEmits(["toggle-drawer", "threshold"])
 const countLabel = computed(() => {
   const value = Number(props.count)

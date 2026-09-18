@@ -10,7 +10,7 @@
     </div>
 
     <div class="filter-bar panel">
-      <label>会议 <select v-model="filters.conference" class="select"><option value="">全部顶会</option><option value="CVPR">CVPR</option><option value="ICCV">ICCV</option><option value="ECCV">ECCV</option></select></label>
+      <label>会议 <select :value="conference" class="select" @change="setConference($event.target.value)"><option value="">全部顶会</option><option value="CVPR">CVPR</option><option value="ICCV">ICCV</option><option value="ECCV">ECCV</option></select></label>
       <label>起始年 <input v-model.number="filters.year_from" class="field year-field" type="number" min="1990" max="2100" placeholder="不限" /></label>
       <label>结束年 <input v-model.number="filters.year_to" class="field year-field" type="number" min="1990" max="2100" placeholder="不限" /></label>
       <button class="button secondary" type="button" @click="resetFilters">重置筛选</button>
@@ -51,7 +51,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from "vue"
-import { useRouter } from "vue-router"
+import { useRoute, useRouter } from "vue-router"
 
 import { getErrorMessage, statsApi } from "../api"
 import AppShell from "../components/AppShell.vue"
@@ -60,7 +60,8 @@ import MetricCard from "../components/MetricCard.vue"
 import { formatHeat } from "../utils/filters"
 
 const router = useRouter()
-const filters = reactive({ conference: "", year_from: "", year_to: "" })
+const route = useRoute()
+const filters = reactive({ year_from: "", year_to: "" })
 const summary = ref({ total_papers: null, conference_count: 0, year_from: null, year_to: null })
 const topics = ref([])
 const graph = ref({ nodes: [], links: [] })
@@ -76,7 +77,16 @@ function formatNumber(value) {
   return new Intl.NumberFormat("zh-CN").format(Number(value))
 }
 function queryParams() {
-  return Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== "" && value !== null && value !== undefined))
+  const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== "" && value !== null && value !== undefined))
+  if (conference.value) params.conference = conference.value
+  return params
+}
+const conference = computed(() => typeof route.query.conference === "string" ? route.query.conference.toUpperCase() : "")
+async function setConference(value) {
+  const query = { ...route.query }
+  if (value) query.conference = value
+  else delete query.conference
+  await router.replace({ query })
 }
 async function load() {
   loading.value = true
@@ -99,12 +109,13 @@ async function load() {
   }
 }
 function resetFilters() {
-  Object.assign(filters, { conference: "", year_from: "", year_to: "" })
+  Object.assign(filters, { year_from: "", year_to: "" })
+  setConference("")
 }
 function openTopic(keyword) {
-  router.push({ name: "papers", query: { keyword } })
+  router.push({ name: "papers", query: { ...route.query, keyword } })
 }
-watch(() => [filters.conference, filters.year_from, filters.year_to], load)
+watch(() => [route.query.conference, filters.year_from, filters.year_to], load)
 onMounted(load)
 </script>
 

@@ -18,4 +18,11 @@ describe("TelemetryBar", () => {
 
     expect(wrapper.find(".telemetry-count").text()).toContain("42")
   })
+
+  it("exposes drawer state and target for assistive technology", () => {
+    const wrapper = mount(TelemetryBar, { props: { drawerOpen: true, drawerId: "test-sidebar" } })
+
+    expect(wrapper.get(".drawer-toggle").attributes("aria-expanded")).toBe("true")
+    expect(wrapper.get(".drawer-toggle").attributes("aria-controls")).toBe("test-sidebar")
+  })
 })

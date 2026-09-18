@@ -27,8 +27,8 @@ const conferences = [
 </script>
 
 <style scoped>
-.conference-chips { display: flex; align-items: center; gap: 4px; }
-.conference-chip { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 0 7px; border: 1px solid var(--line); border-radius: var(--radius-xs); background: transparent; color: var(--text-dim); font: 9px var(--mono); letter-spacing: .08em; }
+.conference-chips { display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
+.conference-chip { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; min-height: 24px; padding: 0 7px; border: 1px solid var(--line); border-radius: var(--radius-xs); background: transparent; color: var(--text-dim); font: 9px var(--mono); letter-spacing: .08em; }
 .conference-chip:hover, .conference-chip.active { border-color: currentColor; background: var(--surface-container-highest); color: var(--text); }
 .chip-signal { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .chip-cyan { color: var(--cyan); }

@@ -112,12 +112,15 @@ import PaperTable from "../components/PaperTable.vue"
 
 const route = useRoute()
 const router = useRouter()
-const filters = reactive({
-  q: typeof route.query.q === "string" ? route.query.q : "",
-  conference: typeof route.query.conference === "string" ? route.query.conference : "",
-  year: route.query.year ? Number(route.query.year) : "",
-  keyword: typeof route.query.keyword === "string" ? route.query.keyword : "",
-})
+function readRouteFilters() {
+  return {
+    q: typeof route.query.q === "string" ? route.query.q : "",
+    conference: typeof route.query.conference === "string" ? route.query.conference : "",
+    year: route.query.year ? Number(route.query.year) : "",
+    keyword: typeof route.query.keyword === "string" ? route.query.keyword : "",
+  }
+}
+const filters = reactive(readRouteFilters())
 const page = ref(1)
 const pageSize = 15
 const items = ref([])
@@ -133,6 +136,7 @@ const lookupLoading = ref(false)
 const saveLookupLoading = ref(false)
 const lookupPaper = ref(null)
 const lookupError = ref("")
+let requestSequence = 0
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 
@@ -145,16 +149,19 @@ function queryParams() {
 }
 
 async function load() {
+  const requestId = ++requestSequence
   loading.value = true
   error.value = ""
   try {
     const response = await papersApi.list(queryParams())
+    if (requestId !== requestSequence) return
     items.value = response.data.items
     total.value = response.data.total
   } catch (cause) {
+    if (requestId !== requestSequence) return
     error.value = getErrorMessage(cause, "论文接口暂时不可用")
   } finally {
-    loading.value = false
+    if (requestId === requestSequence) loading.value = false
   }
 }
 
@@ -251,10 +258,8 @@ function clearLookup() {
   lookupPaper.value = null
   lookupError.value = ""
 }
-watch(() => route.query.conference, (value) => {
-  const conference = typeof value === "string" ? value : ""
-  if (filters.conference === conference) return
-  filters.conference = conference
+watch(() => [route.query.q, route.query.conference, route.query.year, route.query.keyword], () => {
+  Object.assign(filters, readRouteFilters())
   page.value = 1
   searched.value = Boolean(filters.q || filters.conference || filters.year || filters.keyword)
   load()

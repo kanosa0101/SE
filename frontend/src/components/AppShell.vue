@@ -13,10 +13,10 @@
         </label>
         <ConferenceChips v-model="conference" />
       </div>
-      <TelemetryBar :count="props.recordCount" @toggle-drawer="drawerOpen = !drawerOpen" @threshold="emitThreshold" />
+      <TelemetryBar :count="props.recordCount" :drawer-open="drawerOpen" drawer-id="observatory-sidebar" @toggle-drawer="drawerOpen = !drawerOpen" @threshold="emitThreshold" />
     </header>
 
-    <aside class="sidebar" :class="{ open: drawerOpen }">
+    <aside id="observatory-sidebar" class="sidebar" :class="{ open: drawerOpen }">
       <div class="sidebar-label"><span>Navigation Matrix</span><span>⊢ 01</span></div>
       <nav class="nav-list" aria-label="Main navigation">
         <RouterLink v-for="item in navItems" :key="item.to" :to="item.to" class="nav-item">
@@ -45,7 +45,7 @@ import TelemetryBar from "./TelemetryBar.vue"
 const router = useRouter()
 const route = useRoute()
 const props = defineProps({ recordCount: { type: [String, Number], default: null } })
-const searchText = ref("")
+const searchText = ref(typeof route.query.q === "string" ? route.query.q : "")
 const conference = ref(typeof route.query.conference === "string" ? route.query.conference.toLowerCase() : "all")
 const drawerOpen = ref(false)
 const navItems = [
@@ -63,10 +63,20 @@ async function syncConference(value) {
   await router.replace({ query })
 }
 watch(conference, syncConference)
+watch(() => route.query.conference, (value) => {
+  const nextConference = typeof value === "string" ? value.toLowerCase() : "all"
+  if (conference.value !== nextConference) conference.value = nextConference
+})
+watch(() => route.query.q, (value) => {
+  searchText.value = typeof value === "string" ? value : ""
+})
 
 function search() {
   const query = searchText.value.trim()
-  if (query) router.push({ name: "papers", query: { q: query } })
+  const routeQuery = { ...route.query }
+  if (query) routeQuery.q = query
+  else delete routeQuery.q
+  router.push({ name: "papers", query: routeQuery })
 }
 
 function emitThreshold() {
@@ -101,7 +111,7 @@ function emitThreshold() {
 .foot-title { margin-top: 10px; color: var(--amber); }
 .sidebar-foot p { margin: 9px 0 14px; color: var(--text-dim); font: 10px/1.7 var(--mono); }
 .coordinates { color: var(--text-dim); font-size: 8px; }
-@media (max-width: 1100px) { .brand { min-width: 210px; } .conference-chips { display: none; } }
+@media (max-width: 1100px) { .brand { min-width: 210px; } .search-cluster { overflow: hidden; } }
 @media (max-width: 900px) {
   .topbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(140px, 2fr) auto; grid-template-areas: "brand search telemetry"; gap: 10px; padding: 0 14px; }
   .brand { grid-area: brand; min-width: 0; }
