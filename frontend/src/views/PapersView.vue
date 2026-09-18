@@ -211,25 +211,49 @@ function exportParams() {
   }
   return params
 }
+async function readBlobText(blob) {
+  if (typeof blob?.text === "function") return blob.text()
+  if (typeof FileReader === "undefined") return ""
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ""))
+    reader.onerror = () => reject(reader.error || new Error("无法读取导出错误"))
+    reader.readAsText(blob)
+  })
+}
+async function readExportError(cause) {
+  const data = cause?.response?.data
+  if (typeof Blob !== "undefined" && data instanceof Blob) {
+    try {
+      const payload = JSON.parse(await readBlobText(data))
+      if (payload?.detail) return payload.detail
+    } catch {
+      // The response may be a non-JSON download error.
+    }
+  }
+  return getErrorMessage(cause, "论文导出失败")
+}
 async function downloadExport(format) {
   exportLoading.value = true
   exportError.value = ""
+  let objectUrl = ""
+  let urlApi = null
   try {
     const response = await papersApi.export(format, exportParams())
     const data = response.data instanceof Blob ? response.data : new Blob([response.data])
-    const urlApi = window.URL || window.webkitURL
+    urlApi = window.URL || window.webkitURL
     if (!urlApi?.createObjectURL) throw new Error("当前浏览器不支持文件下载")
-    const objectUrl = urlApi.createObjectURL(data)
+    objectUrl = urlApi.createObjectURL(data)
     const link = document.createElement("a")
     link.href = objectUrl
     link.download = format === "csv" ? "cvinsight-papers.csv" : "cvinsight-papers.bib"
     document.body.appendChild(link)
     link.click()
     link.remove()
-    urlApi.revokeObjectURL?.(objectUrl)
   } catch (cause) {
-    exportError.value = getErrorMessage(cause, "论文导出失败")
+    exportError.value = await readExportError(cause)
   } finally {
+    urlApi?.revokeObjectURL?.(objectUrl)
     exportLoading.value = false
   }
 }
