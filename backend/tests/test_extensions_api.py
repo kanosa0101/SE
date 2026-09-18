@@ -41,6 +41,13 @@ def test_topic_inspector_returns_keyword_and_representative_papers(client):
     assert body["keyword"] == "transformer"
     assert body["representative_papers"]
     assert body["representative_papers"][0]["year"] == 2024
+    assert body["conference_breakdown"] == [{"conference": "CVPR", "papers": 2}]
+    assert body["year_series"] == [
+        {"year": 2022, "papers": 1},
+        {"year": 2024, "papers": 1},
+    ]
+    assert body["related_keywords"]
+    assert body["related_keywords"][0]["keyword"] == "attention"
 
 
 def test_topic_inspector_returns_404_for_unknown_keyword(client):
@@ -93,7 +100,30 @@ def test_quality_audit_reports_missing_metadata(client):
     assert body["missing_fields"]["abstract"] == 1
     assert body["missing_fields"]["authors"] == 1
     assert body["missing_fields"]["source_url"] == 1
+    assert body["source_breakdown"] == [{"source": "manual", "papers": 1}]
+    assert body["conference_year_matrix"] == [{"conference": "CVPR", "year": 2024, "papers": 1}]
 
+
+def test_quality_audit_labels_blank_source_unknown_and_csv_import(client):
+    blank = client.post(
+        "/api/papers",
+        json={"title": "Blank Source Paper", "conference": "CVPR", "year": 2024, "source": ""},
+    )
+    assert blank.status_code == 201
+
+    imported = client.post(
+        "/api/papers/import",
+        files={"file": ("papers.csv", io.BytesIO(b"title,conference,year\nCSV Paper,ECCV,2023\n"), "text/csv")},
+    )
+    assert imported.status_code == 200
+    assert imported.json()["created"] == 1
+
+    audit = client.get("/api/stats/quality")
+    assert audit.status_code == 200
+    assert audit.json()["source_breakdown"] == [
+        {"source": "csv", "papers": 1},
+        {"source": "unknown", "papers": 1},
+    ]
 
 def test_csv_export_has_stable_header_and_conference_filter(client):
     seed_transformer_papers(client)

@@ -126,10 +126,29 @@ class TopicRepresentativePaper(BaseModel):
     source_url: str | None = None
 
 
+class TopicConferenceBreakdown(BaseModel):
+    conference: Conference
+    papers: int
+
+
+class TopicYearPoint(BaseModel):
+    year: int
+    papers: int
+
+
+class RelatedKeyword(BaseModel):
+    keyword: str
+    papers: int
+    heat: float
+
+
 class TopicInspector(BaseModel):
     keyword: str
     papers: int
     heat: float
+    conference_breakdown: list[TopicConferenceBreakdown]
+    year_series: list[TopicYearPoint]
+    related_keywords: list[RelatedKeyword]
     representative_papers: list[TopicRepresentativePaper]
 
 
@@ -149,10 +168,23 @@ class YearlyEvolution(BaseModel):
     frames: list[EvolutionFrame]
 
 
+class QualitySourceBreakdown(BaseModel):
+    source: str
+    papers: int
+
+
+class QualityConferenceYear(BaseModel):
+    conference: Conference
+    year: int
+    papers: int
+
+
 class QualityAudit(BaseModel):
     total: int
     keyword_coverage: float
     missing_fields: dict[str, int]
+    source_breakdown: list[QualitySourceBreakdown]
+    conference_year_matrix: list[QualityConferenceYear]
 
 
 ExportFormat = Literal["csv", "bibtex"]

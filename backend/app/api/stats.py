@@ -142,11 +142,12 @@ def trends(
 @router.get("/topics/{keyword}/inspector", response_model=TopicInspector)
 def topic_inspector(keyword: str, db: Session = Depends(get_db)) -> TopicInspector:
     normalized = keyword.strip().lower()
-    rows = [row for row in _keyword_rows(db) if row["keyword"] == normalized]
+    all_rows = _keyword_rows(db)
+    rows = [row for row in all_rows if row["keyword"] == normalized]
     if not rows:
         raise HTTPException(status_code=404, detail="主题不存在")
     total = db.scalar(select(func.count(Paper.id))) or 0
-    return build_topic_inspector(rows, normalized, total)
+    return build_topic_inspector(rows, normalized, total, all_rows)
 
 
 @router.get("/evolution", response_model=YearlyEvolution)
@@ -157,5 +158,5 @@ def evolution(limit: int = Query(default=10, ge=1, le=100), db: Session = Depend
 @router.get("/quality", response_model=QualityAudit)
 def quality(db: Session = Depends(get_db)) -> QualityAudit:
     papers = db.scalars(select(Paper).order_by(Paper.id)).all()
-    rows = [{"abstract": paper.abstract, "authors": paper.authors, "source_url": paper.source_url, "keywords": paper.paper_keywords} for paper in papers]
+    rows = [{"abstract": paper.abstract, "authors": paper.authors, "source_url": paper.source_url, "source": paper.source, "conference": paper.conference, "year": paper.year, "keywords": paper.paper_keywords} for paper in papers]
     return build_quality_audit(rows)
