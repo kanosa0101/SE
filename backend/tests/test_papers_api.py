@@ -77,6 +77,31 @@ def test_csv_import_preserves_cvf_provenance(client):
     assert papers[0]["parser_version"] == "cvf-v2"
     assert papers[0]["crawled_at"] == "2026-09-18T12:34:56Z"
 
+def test_crawled_at_offset_is_normalized_to_utc(client):
+    response = client.post(
+        "/api/papers",
+        json=paper_payload("Offset Timestamp Paper") | {"crawled_at": "2026-09-18T14:34:56+02:00"},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["crawled_at"] == "2026-09-18T12:34:56Z"
+
+
+def test_csv_import_rejects_malformed_crawled_at(client):
+    csv_data = io.BytesIO(
+        b"title,conference,year,crawled_at\n"
+        b"Malformed Timestamp,CVPR,2024,not-a-timestamp\n"
+    )
+
+    response = client.post(
+        "/api/papers/import",
+        files={"file": ("papers.csv", csv_data, "text/csv")},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["errors"] == 1
+    assert "invalid crawled_at timestamp" in response.json()["items"][0]["message"]
+
 
 def test_lookup_without_configured_source_returns_explainable_error(client):
     response = client.get("/api/papers/lookup", params={"title": "Unknown Paper"})
