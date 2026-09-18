@@ -22,12 +22,15 @@ def init_db(engine: Engine) -> None:
     with engine.begin() as connection:
         existing_columns = {column["name"] for column in inspect(connection).get_columns("papers")}
         migrations = (
-            ("crawled_at", "DATETIME"),
-            ("parser_version", "VARCHAR(40)"),
+            ("crawled_at", Paper.__table__.c.crawled_at.type),
+            ("parser_version", Paper.__table__.c.parser_version.type),
         )
         for column_name, column_type in migrations:
             if column_name not in existing_columns:
-                connection.execute(text(f"ALTER TABLE papers ADD COLUMN {column_name} {column_type}"))
+                compiled_type = column_type.compile(dialect=connection.dialect)
+                connection.execute(
+                    text(f"ALTER TABLE papers ADD COLUMN {column_name} {compiled_type}")
+                )
 
         if connection.dialect.name == "sqlite":
             existing_indexes = {
