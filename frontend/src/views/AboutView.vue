@@ -8,10 +8,13 @@
       <article class="panel method-card"><div class="eyebrow">04 / LIMITS</div><h2>使用边界</h2><p>热度仅用于研究趋势探索，不代表论文质量、学术影响力或会议录用评价。样本覆盖范围变化会影响比较结果。</p></article>
     </section>
     <article class="panel pipeline"><div class="panel-heading"><div><div class="eyebrow">PIPELINE / TRACEABILITY</div><h2>数据处理流程</h2></div></div><div class="pipeline-steps"><div v-for="(step, index) in steps" :key="step" class="pipeline-step"><span>0{{ index + 1 }}</span><strong>{{ step }}</strong><i v-if="index < steps.length - 1">→</i></div></div></article>
+    <DataQualityCard />
   </AppShell>
 </template>
 
 <script setup>
+import DataQualityCard from "../components/DataQualityCard.vue"
+
 const steps = ["论文获取", "字段校验", "关键词归一", "热度统计", "关系图谱与趋势可视化"]
 </script>
 
@@ -30,4 +33,3 @@ const steps = ["论文获取", "字段校验", "关键词归一", "热度统计"
 .pipeline-step i { color: var(--cyan); font-style: normal; }
 @media (max-width: 700px) { .method-grid { grid-template-columns: 1fr; } .pipeline-steps { align-items: flex-start; flex-direction: column; } .pipeline-step i { display: none; } }
 </style>
-

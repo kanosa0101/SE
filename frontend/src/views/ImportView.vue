@@ -52,6 +52,8 @@
       </section>
     </div>
 
+    <DataQualityCard :key="qualityVersion" />
+
     <section class="panel notes-panel">
       <div class="panel-heading"><div><div class="eyebrow">TRACEABILITY / NOTES</div><h2>导入口径</h2></div></div>
       <div class="panel-body note-grid">
@@ -68,6 +70,7 @@ import { ref } from "vue"
 
 import { getErrorMessage, papersApi } from "../api"
 import AppShell from "../components/AppShell.vue"
+import DataQualityCard from "../components/DataQualityCard.vue"
 import ImportResults from "../components/ImportResults.vue"
 
 const title = ref("")
@@ -80,6 +83,7 @@ const selectedFile = ref(null)
 const importLoading = ref(false)
 const importSummary = ref(null)
 const importError = ref("")
+const qualityVersion = ref(0)
 
 async function lookup() {
   lookupLoading.value = true
@@ -103,6 +107,7 @@ async function saveLookup() {
     await papersApi.create(lookupPaper.value)
     successMessage.value = "论文已保存到 SQLite，可以在论文库中继续编辑。"
     lookupPaper.value = null
+    qualityVersion.value += 1
   } catch (cause) {
     lookupError.value = getErrorMessage(cause, "论文保存失败")
   } finally {
@@ -124,6 +129,7 @@ async function uploadCsv() {
     const response = await papersApi.importCsv(selectedFile.value)
     importSummary.value = response.data
     successMessage.value = "批量导入处理完成，结果已按行展示。"
+    qualityVersion.value += 1
   } catch (cause) {
     importError.value = getErrorMessage(cause, "CSV 导入失败")
   } finally {
@@ -166,4 +172,3 @@ function formatBytes(value) {
 @media (max-width: 900px) { .import-grid, .note-grid { grid-template-columns: 1fr; } }
 @media (max-width: 620px) { .page-head { display: block; } .page-head .button { display: inline-flex; margin-top: 16px; } .lookup-form { display: grid; } }
 </style>
-

@@ -7,7 +7,7 @@
           <td><button class="title-button" type="button" @click="$emit('detail', paper)">{{ paper.title }}</button><div class="authors">{{ paper.authors || "作者信息未提供" }}</div></td>
           <td><span class="venue">{{ paper.conference }}</span><span class="year">{{ paper.year }}</span></td>
           <td><div class="keyword-list"><span v-for="keyword in paper.keywords.slice(0, 3)" :key="keyword" class="keyword">{{ keyword }}</span><span v-if="paper.keywords.length > 3" class="dim">+{{ paper.keywords.length - 3 }}</span></div></td>
-          <td><span class="source">{{ paper.source }}</span></td>
+          <td><span class="source">{{ paper.source || "unknown" }}</span><span v-if="paper.crawled_at" class="provenance">抓取 {{ formatTimestamp(paper.crawled_at) }}</span><span v-if="paper.parser_version" class="provenance">解析 {{ paper.parser_version }}</span></td>
           <td><div class="actions"><button type="button" title="编辑" @click="$emit('edit', paper)">编辑</button><button type="button" title="删除" class="danger" @click="$emit('delete', paper)">删除</button></div></td>
         </tr>
         <tr v-if="!items.length"><td colspan="5"><div class="empty-box compact">没有找到符合条件的论文。</div></td></tr>
@@ -18,6 +18,9 @@
 
 <script setup>
 defineProps({ items: { type: Array, default: () => [] } })
+function formatTimestamp(value) {
+  return String(value).replace("T", " ").replace(/Z$/, "")
+}
 defineEmits(["detail", "edit", "delete"])
 </script>
 
@@ -34,10 +37,10 @@ defineEmits(["detail", "edit", "delete"])
 .year { margin-top: 4px; color: var(--text-soft); }
 .keyword-list { display: flex; flex-wrap: wrap; gap: 4px; max-width: 210px; }
 .keyword { padding: 3px 6px; border: 1px solid rgba(34,211,238,.25); border-radius: 2px; color: var(--cyan); font: 10px var(--mono); }
-.source { color: var(--text-soft); font: 11px var(--mono); }
+.source { display: block; color: var(--text-soft); font: 11px var(--mono); }
+.provenance { display: block; margin-top: 5px; color: var(--text-dim); font: 10px var(--mono); white-space: nowrap; }
 .actions { display: flex; gap: 6px; }
 .actions button { padding: 5px 8px; border: 1px solid var(--line); border-radius: 3px; background: var(--ink-900); color: var(--text-soft); font-size: 11px; }
 .actions button:hover { border-color: var(--cyan); color: var(--cyan); }
 .actions .danger:hover { border-color: var(--coral); color: var(--coral); }
 </style>
-

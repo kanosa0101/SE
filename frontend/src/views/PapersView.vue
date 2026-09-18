@@ -48,6 +48,11 @@
       <div class="result-bar">
         <span class="mono dim">本地数据库 {{ total }} 条记录</span>
         <span v-if="searched && filters.q && !items.length" class="dim">本地未找到匹配项，可发起在线检索</span>
+        <div class="export-actions">
+          <span v-if="exportError" class="export-error">{{ exportError }}</span>
+          <button class="button secondary export-csv" type="button" :disabled="exportLoading" @click="downloadExport('csv')">{{ exportLoading ? "导出中…" : "导出 CSV" }}</button>
+          <button class="button secondary export-bibtex" type="button" :disabled="exportLoading" @click="downloadExport('bibtex')">{{ exportLoading ? "导出中…" : "导出 BibTeX" }}</button>
+        </div>
       </div>
       <section class="panel">
         <PaperTable :items="items" @detail="openDetail" @edit="openEdit" @delete="removePaper" />
@@ -144,6 +149,8 @@ const lookupLoading = ref(false)
 const saveLookupLoading = ref(false)
 const lookupPaper = ref(null)
 const lookupError = ref("")
+const exportLoading = ref(false)
+const exportError = ref("")
 let requestSequence = 0
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
@@ -196,6 +203,35 @@ async function reset() {
 function changePage(nextPage) {
   page.value = nextPage
   load()
+}
+function exportParams() {
+  const params = {}
+  for (const key of ["q", "conference", "year", "year_from", "year_to", "keyword"]) {
+    if (filters[key] !== "" && filters[key] !== null && filters[key] !== undefined) params[key] = filters[key]
+  }
+  return params
+}
+async function downloadExport(format) {
+  exportLoading.value = true
+  exportError.value = ""
+  try {
+    const response = await papersApi.export(format, exportParams())
+    const data = response.data instanceof Blob ? response.data : new Blob([response.data])
+    const urlApi = window.URL || window.webkitURL
+    if (!urlApi?.createObjectURL) throw new Error("当前浏览器不支持文件下载")
+    const objectUrl = urlApi.createObjectURL(data)
+    const link = document.createElement("a")
+    link.href = objectUrl
+    link.download = format === "csv" ? "cvinsight-papers.csv" : "cvinsight-papers.bib"
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    urlApi.revokeObjectURL?.(objectUrl)
+  } catch (cause) {
+    exportError.value = getErrorMessage(cause, "论文导出失败")
+  } finally {
+    exportLoading.value = false
+  }
 }
 function openCreate() {
   editingPaper.value = null
@@ -282,7 +318,10 @@ onMounted(load)
 .search-panel label { display: grid; gap: 5px; color: var(--text-soft); font-size: 12px; }
 .search-field { min-width: 0; }
 .year-field { max-width: 130px; }
-.result-bar { display: flex; justify-content: space-between; gap: 12px; margin: 15px 2px 10px; font-size: 12px; }
+.result-bar { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin: 15px 2px 10px; font-size: 12px; }
+.export-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.export-actions .button { min-height: 30px; padding: 5px 9px; font-size: 11px; }
+.export-error { color: var(--coral); font-size: 11px; }
 .pagination { display: flex; justify-content: center; align-items: center; gap: 15px; padding: 16px; border-top: 1px solid var(--line); }
 .lookup-prompt, .lookup-result { display: flex; align-items: center; justify-content: space-between; gap: 22px; padding: 20px; margin-top: 18px; }
 .lookup-prompt h2 { margin: 4px 0; font: 600 20px var(--serif); }
@@ -307,8 +346,5 @@ onMounted(load)
 .detail-body { padding: 24px; }
 .retry { margin-left: 8px; min-height: 32px; }
 @media (max-width: 1100px) { .search-panel { grid-template-columns: 1fr 1fr; } .search-field { grid-column: 1 / -1; } }
-@media (max-width: 620px) { .page-head { display: block; } .page-actions { margin-top: 16px; } .search-panel { grid-template-columns: 1fr; } .search-field { grid-column: auto; } .result-bar, .lookup-prompt { display: block; } .lookup-prompt .button { margin-top: 14px; } }
+@media (max-width: 620px) { .page-head { display: block; } .page-actions { margin-top: 16px; } .search-panel { grid-template-columns: 1fr; } .search-field { grid-column: auto; } .result-bar, .lookup-prompt { display: block; } .export-actions { justify-content: flex-start; margin-top: 12px; } .lookup-prompt .button { margin-top: 14px; } }
 </style>
-
-
-

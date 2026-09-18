@@ -11,6 +11,7 @@ export const statsApi = {
   graph: (params = {}) => client.get("/stats/graph", { params }),
   trends: (params = {}) => client.get("/stats/trends", { params }),
   evolution: (limit = 10) => client.get("/stats/evolution", { params: { limit } }),
+  quality: () => client.get("/stats/quality"),
   inspector: (keyword) => client.get(`/stats/topics/${encodeURIComponent(keyword)}/inspector`),
 }
 
@@ -21,6 +22,7 @@ export const papersApi = {
   update: (id, payload) => client.put(`/papers/${id}`, payload),
   remove: (id) => client.delete(`/papers/${id}`),
   lookup: (title) => client.get("/papers/lookup", { params: { title } }),
+  export: (format = "csv", params = {}) => client.get("/papers/export", { params: { format, ...params }, responseType: "blob" }),
   importCsv: (file) => {
     const form = new FormData()
     form.append("file", file)

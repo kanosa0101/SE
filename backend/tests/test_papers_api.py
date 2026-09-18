@@ -125,4 +125,22 @@ def test_paper_year_range_filter(client):
     assert response.status_code == 200
     assert response.json()["total"] == 1
     assert response.json()["items"][0]["year"] == 2023
+def test_paper_export_respects_year_range(client):
+    for year in (2020, 2023, 2025):
+        response = client.post(
+            "/api/papers",
+            json=paper_payload(f"Export Range Paper {year}") | {"year": year},
+        )
+        assert response.status_code == 201
+
+    response = client.get(
+        "/api/papers/export",
+        params={"format": "csv", "year_from": 2021, "year_to": 2024},
+    )
+
+    assert response.status_code == 200
+    body = response.content.decode("utf-8")
+    assert "Export Range Paper 2023" in body
+    assert "Export Range Paper 2020" not in body
+    assert "Export Range Paper 2025" not in body
 
