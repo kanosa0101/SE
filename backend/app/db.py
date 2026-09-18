@@ -16,6 +16,8 @@ def make_engine(database_url: str) -> Engine:
 
 
 def init_db(engine: Engine) -> None:
+    from app.models import Paper
+
     Base.metadata.create_all(engine)
     with engine.begin() as connection:
         existing_columns = {column["name"] for column in inspect(connection).get_columns("papers")}
@@ -26,6 +28,25 @@ def init_db(engine: Engine) -> None:
         for column_name, column_type in migrations:
             if column_name not in existing_columns:
                 connection.execute(text(f"ALTER TABLE papers ADD COLUMN {column_name} {column_type}"))
+
+        if connection.dialect.name == "sqlite":
+            existing_indexes = {
+                index["name"]
+                for index in inspect(connection).get_indexes(Paper.__tablename__)
+            }
+            preparer = connection.dialect.identifier_preparer
+            for index in Paper.__table__.indexes:
+                if index.name in existing_indexes:
+                    continue
+                quoted_name = preparer.quote(index.name)
+                quoted_table = preparer.quote(Paper.__tablename__)
+                quoted_columns = ", ".join(preparer.quote(column.name) for column in index.columns)
+                connection.execute(
+                    text(
+                        f"CREATE INDEX IF NOT EXISTS {quoted_name} "
+                        f"ON {quoted_table} ({quoted_columns})"
+                    )
+                )
 
 
 def session_factory(engine: Engine) -> sessionmaker[Session]:

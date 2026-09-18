@@ -33,3 +33,10 @@ def test_init_db_adds_provenance_columns_to_v1_papers_table(tmp_path):
 
     columns = {column["name"] for column in inspect(engine).get_columns("papers")}
     assert {"crawled_at", "parser_version"} <= columns
+
+    indexes = {
+        index["name"]: tuple(index["column_names"])
+        for index in inspect(engine).get_indexes("papers")
+    }
+    assert indexes["ix_papers_conference_year"] == ("conference", "year")
+    assert indexes["ix_papers_normalized_title"] == ("normalized_title",)
