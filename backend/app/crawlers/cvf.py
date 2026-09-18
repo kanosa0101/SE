@@ -8,6 +8,7 @@ import os
 import re
 import tempfile
 import threading
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -15,6 +16,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 from urllib.parse import parse_qs, urljoin, urlparse
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
 
 import httpx
 from bs4 import BeautifulSoup
@@ -225,6 +231,28 @@ class CvfCrawler:
         finally:
             temporary_path.unlink(missing_ok=True)
 
+    @contextmanager
+    def _manifest_process_lock(self):
+        lock_path = self._manifest_path.with_suffix(".lock")
+        with lock_path.open("a+b") as handle:
+            handle.seek(0, os.SEEK_END)
+            if handle.tell() == 0:
+                handle.write(b"0")
+                handle.flush()
+            handle.seek(0)
+            if os.name == "nt":
+                msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            else:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                handle.seek(0)
+                if os.name == "nt":
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
     def _manifest_snapshot(self) -> list[dict[str, str]]:
         with self._manifest_lock:
             return [entry.copy() for entry in self._manifest]
@@ -238,20 +266,22 @@ class CvfCrawler:
         if error:
             entry["error"] = error
         with self._manifest_lock:
-            self._manifest.append(entry)
-            self._manifest.sort(
-                key=lambda item: (
-                    item["url"],
-                    item["status"],
-                    item.get("error", ""),
+            with self._manifest_process_lock():
+                self._manifest = self._load_manifest()
+                self._manifest.append(entry)
+                self._manifest.sort(
+                    key=lambda item: (
+                        item["url"],
+                        item["status"],
+                        item.get("error", ""),
+                    )
                 )
-            )
-            if status == "failed":
-                self._current_failed_urls.add(url)
-            self._write_atomic(
-                self._manifest_path,
-                json.dumps(self._manifest, ensure_ascii=False, indent=2),
-            )
+                if status == "failed":
+                    self._current_failed_urls.add(url)
+                self._write_atomic(
+                    self._manifest_path,
+                    json.dumps(self._manifest, ensure_ascii=False, indent=2),
+                )
 
     def _cache_path(self, url: str) -> Path:
         return self.cache_dir / f"{hashlib.sha256(url.encode('utf-8')).hexdigest()}.html"
@@ -318,12 +348,13 @@ class CvfCrawler:
         if skipped or index_html is None:
             return []
         detail_urls = parse_index(index_html, self.base_url)
-        if not detail_urls:
-            all_papers_url = parse_all_papers_url(index_html, event_url)
-            if all_papers_url:
-                all_index_html, all_skipped = self._fetch_html(all_papers_url)
-                if not all_skipped and all_index_html is not None:
-                    detail_urls = parse_index(all_index_html, self.base_url)
+        all_papers_url = parse_all_papers_url(index_html, event_url)
+        if all_papers_url:
+            all_index_html, all_skipped = self._fetch_html(all_papers_url)
+            if not all_skipped and all_index_html is not None:
+                detail_urls = list(dict.fromkeys(
+                    [*detail_urls, *parse_index(all_index_html, self.base_url)]
+                ))
         if limit is not None:
             detail_urls = detail_urls[:limit]
         self._current_discovered_pages.update(detail_urls)
@@ -346,7 +377,10 @@ class CvfCrawler:
     def _fetch_and_parse(
         self, url: str, conference: str, year: int
     ) -> CvfRecord | None:
-        html, _ = self._fetch_html(url)
+        html, not_found = self._fetch_html(url)
+        if not_found:
+            with self._manifest_lock:
+                self._current_failed_urls.add(url)
         return parse_detail(html, conference, year, url) if html is not None else None
 
     def crawl(

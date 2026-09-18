@@ -397,3 +397,70 @@ def test_crawl_limit_bounds_detail_requests(tmp_path: Path) -> None:
 
     assert len(summary.records) == 2
     assert len(requested_details) == 2
+def test_detail_404_is_reported_in_failed_pages(tmp_path: Path) -> None:
+    detail_url = "https://example.test/content/CVPR2025/html/Missing_paper.html"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/CVPR2025":
+            return httpx.Response(200, text=f'<a href="{detail_url}">paper</a>', request=request)
+        return httpx.Response(404, request=request)
+
+    with CvfCrawler(
+        tmp_path,
+        base_url="https://example.test",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        max_retries=0,
+        delay=0,
+    ) as crawler:
+        summary = crawler.crawl(["CVPR"], [2025])
+
+    assert summary.records == []
+    assert summary.failed_pages == [detail_url]
+    manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
+    assert any(item["url"] == detail_url and item["status"] == "not_found" for item in manifest)
+
+
+def test_all_papers_view_is_merged_with_landing_links(tmp_path: Path) -> None:
+    first_url = "https://example.test/content/CVPR2025/html/First_paper.html"
+    second_url = "https://example.test/content/CVPR2025/html/Second_paper.html"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/CVPR2025" and request.url.params.get("day") is None:
+            return httpx.Response(
+                200,
+                text=f'<a href="{first_url}">first</a><a href="/CVPR2025?day=all">all</a>',
+                request=request,
+            )
+        if request.url.path == "/CVPR2025" and request.url.params.get("day") == "all":
+            return httpx.Response(200, text=f'<a href="{second_url}">second</a>', request=request)
+        if request.url.path.endswith("_paper.html"):
+            return httpx.Response(200, text=read_fixture("cvf_detail.html"), request=request)
+        return httpx.Response(404, request=request)
+
+    with CvfCrawler(
+        tmp_path,
+        base_url="https://example.test",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        max_retries=0,
+        delay=0,
+    ) as crawler:
+        summary = crawler.crawl(["CVPR"], [2025])
+
+    assert {record.source_url for record in summary.records} == {first_url, second_url}
+
+
+def test_manifest_updates_from_two_crawler_instances_are_merged(tmp_path: Path) -> None:
+    first_url = "https://example.test/content/CVPR2025/html/First_paper.html"
+    second_url = "https://example.test/content/CVPR2025/html/Second_paper.html"
+    first = CvfCrawler(tmp_path, client=httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200, request=request))))
+    second = CvfCrawler(tmp_path, client=httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200, request=request))))
+
+    try:
+        first._record_manifest(first_url, "fetched")
+        second._record_manifest(second_url, "fetched")
+    finally:
+        first.close()
+        second.close()
+
+    manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
+    assert {item["url"] for item in manifest} == {first_url, second_url}
