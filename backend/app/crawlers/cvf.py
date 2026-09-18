@@ -6,10 +6,10 @@ import hashlib
 import json
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Callable
 from urllib.parse import urljoin
 
 import httpx
@@ -112,8 +112,8 @@ class _RateLimiter:
             now = time.monotonic()
             wait_for = max(0.0, self.next_request - now)
             self.next_request = max(now, self.next_request) + self.delay
-            if wait_for:
-                self.sleeper(wait_for)
+        if wait_for:
+            self.sleeper(wait_for)
 
 
 class CvfCrawler:
@@ -145,15 +145,30 @@ class CvfCrawler:
         self._manifest_path = self.cache_dir / "manifest.json"
         self._manifest_lock = threading.Lock()
         self._manifest = self._load_manifest()
+        self._current_failed_urls: set[str] = set()
 
     def _load_manifest(self) -> list[dict[str, str]]:
         if not self._manifest_path.exists():
             return []
         try:
             data = json.loads(self._manifest_path.read_text(encoding="utf-8"))
-            return data if isinstance(data, list) else []
-        except (OSError, json.JSONDecodeError):
+        except (OSError, UnicodeError, json.JSONDecodeError):
             return []
+        if not isinstance(data, list):
+            return []
+        manifest: list[dict[str, str]] = []
+        for entry in data:
+            if not isinstance(entry, dict):
+                continue
+            url = entry.get("url")
+            status = entry.get("status")
+            if not isinstance(url, str) or not isinstance(status, str):
+                continue
+            clean_entry = {"url": url, "status": status}
+            if isinstance(entry.get("error"), str):
+                clean_entry["error"] = entry["error"]
+            manifest.append(clean_entry)
+        return manifest
 
     def _record_manifest(self, url: str, status: str, error: str | None = None) -> None:
         entry = {"url": url, "status": status}
@@ -161,6 +176,15 @@ class CvfCrawler:
             entry["error"] = error
         with self._manifest_lock:
             self._manifest.append(entry)
+            self._manifest.sort(
+                key=lambda item: (
+                    item["url"],
+                    item["status"],
+                    item.get("error", ""),
+                )
+            )
+            if status == "failed":
+                self._current_failed_urls.add(url)
             self._manifest_path.write_text(
                 json.dumps(self._manifest, ensure_ascii=False, indent=2), encoding="utf-8"
             )
@@ -171,8 +195,13 @@ class CvfCrawler:
     def _fetch_html(self, url: str) -> tuple[str | None, bool]:
         cache_path = self._cache_path(url)
         if cache_path.exists():
+            try:
+                html = cache_path.read_text(encoding="utf-8")
+            except (OSError, UnicodeError) as exc:
+                self._record_manifest(url, "failed", str(exc))
+                return None, False
             self._record_manifest(url, "cached")
-            return cache_path.read_text(encoding="utf-8"), False
+            return html, False
 
         last_error = "request failed"
         for attempt in range(self.max_retries + 1):
@@ -187,7 +216,7 @@ class CvfCrawler:
                 cache_path.write_text(html, encoding="utf-8")
                 self._record_manifest(url, "fetched")
                 return html, False
-            except (httpx.HTTPError, OSError) as exc:
+            except (httpx.HTTPError, OSError, UnicodeError) as exc:
                 last_error = str(exc)
                 if attempt < self.max_retries:
                     self._limiter.sleeper(2**attempt * 0.25)
@@ -203,11 +232,15 @@ class CvfCrawler:
         records: list[CvfRecord] = []
         with ThreadPoolExecutor(max_workers=self.workers) as executor:
             futures = {
-                executor.submit(self._fetch_and_parse, url, conference, year): url
+                url: executor.submit(self._fetch_and_parse, url, conference, year)
                 for url in detail_urls
             }
-            for future in as_completed(futures):
-                record = future.result()
+            for url in detail_urls:
+                try:
+                    record = futures[url].result()
+                except Exception as exc:
+                    self._record_manifest(url, "failed", str(exc))
+                    continue
                 if record is not None:
                     records.append(record)
         return records
@@ -225,10 +258,10 @@ class CvfCrawler:
         limit: int | None = None,
         resume: bool = False,
     ) -> CrawlSummary:
-        del resume  # Existing HTML cache makes crawling resumable by URL.
+        del resume
+        self._current_failed_urls = set()
         records: list[CvfRecord] = []
         skipped_events: list[str] = []
-        failed_before = self._failed_urls()
         for conference in conferences:
             for year in years:
                 event = f"{conference}{year}"
@@ -239,19 +272,23 @@ class CvfCrawler:
                 if limit is not None and len(records) >= limit:
                     return CrawlSummary(
                         records=records[:limit],
-                        failed_pages=sorted(self._failed_urls() - failed_before),
+                        failed_pages=sorted(self._current_failed_urls),
                         skipped_events=skipped_events,
                         manifest_path=self._manifest_path,
                     )
         return CrawlSummary(
             records=records,
-            failed_pages=sorted(self._failed_urls() - failed_before),
+            failed_pages=sorted(self._current_failed_urls),
             skipped_events=skipped_events,
             manifest_path=self._manifest_path,
         )
 
     def _failed_urls(self) -> set[str]:
-        return {entry["url"] for entry in self._manifest if entry.get("status") == "failed"}
+        return {
+            entry["url"]
+            for entry in self._manifest
+            if entry.get("status") == "failed"
+        }
 
     def _event_was_not_found(self, event: str) -> bool:
         return any(
