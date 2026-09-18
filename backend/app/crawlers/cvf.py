@@ -148,6 +148,8 @@ class CvfCrawler:
         self._manifest_lock = threading.Lock()
         self._manifest = self._load_manifest()
         self._current_failed_urls: set[str] = set()
+        self._current_event: str | None = None
+        self._current_event_was_not_found = False
 
     def _load_manifest(self) -> list[dict[str, str]]:
         if not self._manifest_path.exists():
@@ -231,8 +233,11 @@ class CvfCrawler:
         return None, False
 
     def crawl_event(self, conference: str, year: int) -> list[CvfRecord]:
-        event_url = f"{self.base_url}/{conference}{year}"
+        event = f"{conference}{year}"
+        self._current_event = event
+        event_url = f"{self.base_url}/{event}"
         index_html, skipped = self._fetch_html(event_url)
+        self._current_event_was_not_found = skipped
         if skipped or index_html is None:
             return []
         detail_urls = parse_index(index_html, self.base_url)
@@ -298,11 +303,7 @@ class CvfCrawler:
         }
 
     def _event_was_not_found(self, event: str) -> bool:
-        return any(
-            entry.get("url", "").rstrip("/").endswith("/" + event)
-            and entry.get("status") == "not_found"
-            for entry in self._manifest
-        )
+        return self._current_event == event and self._current_event_was_not_found
 
     def close(self) -> None:
         if self._owns_client:

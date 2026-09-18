@@ -79,6 +79,25 @@ def test_repeated_failed_url_is_reported_in_current_summary(tmp_path: Path) -> N
     assert summary.failed_pages == [detail_url]
 
 
+def test_skipped_events_reflect_current_event_request(tmp_path: Path) -> None:
+    responses = [404, 200]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(responses.pop(0), text="", request=request)
+
+    with CvfCrawler(
+        tmp_path,
+        base_url="https://example.test",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        delay=0,
+    ) as crawler:
+        first_summary = crawler.crawl(["CVPR"], [2024])
+        second_summary = crawler.crawl(["CVPR"], [2024])
+
+    assert first_summary.skipped_events == ["CVPR2024"]
+    assert second_summary.skipped_events == []
+
+
 def test_records_and_manifest_are_deterministic_when_details_finish_reversed(
     tmp_path: Path,
 ) -> None:
