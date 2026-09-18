@@ -1,6 +1,6 @@
 """Command-line crawl orchestration for CVF Open Access metadata."""
 from __future__ import annotations
-import argparse, csv, json, os, re, sys, tempfile
+import argparse, csv, io, json, os, re, sys, tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -14,17 +14,45 @@ EVENT_CANDIDATES = [("CVPR", 2022), ("CVPR", 2023), ("CVPR", 2024), ("CVPR", 202
 CSV_FIELDS = ["title", "paper_code", "abstract", "authors", "conference", "year", "source",
               "source_url", "keywords", "crawled_at", "parser_version"]
 
+def _non_negative_float(value: str) -> float:
+    parsed = float(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("must be non-negative")
+    return parsed
+
+
+def _positive_float(value: str) -> float:
+    parsed = float(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be positive")
+    return parsed
+
+
+def _non_negative_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("must be non-negative")
+    return parsed
+
+
+def _positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be positive")
+    return parsed
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--venues", nargs="+", default=["CVPR", "ICCV", "ECCV"])
     parser.add_argument("--years", nargs="+", type=int, default=[2022, 2023, 2024, 2025])
     parser.add_argument("--out", type=Path, default=Path("../data/cvf_2022_2025.csv"))
     parser.add_argument("--cache", type=Path, default=Path("../data/raw/cvf"))
-    parser.add_argument("--delay", type=float, default=0.25)
-    parser.add_argument("--workers", type=int, default=4)
-    parser.add_argument("--timeout", type=float, default=20.0)
-    parser.add_argument("--max-retries", type=int, default=3)
-    parser.add_argument("--limit", type=int)
+    parser.add_argument("--delay", type=_non_negative_float, default=0.25)
+    parser.add_argument("--workers", type=_positive_int, default=4)
+    parser.add_argument("--timeout", type=_positive_float, default=20.0)
+    parser.add_argument("--max-retries", type=_non_negative_int, default=3)
+    parser.add_argument("--limit", type=_positive_int)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     return parser
@@ -37,16 +65,78 @@ def _keywords(values: list[str]) -> str:
     normalized = {normalize_keyword(value) for value in values}
     return "; ".join(sorted(value for value in normalized if value))
 
-def _atomic_csv(path: Path, rows: list[dict[str, object]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+def _stage_temp(path: Path, content: bytes) -> Path:
     fd, temporary_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    temporary_path = Path(temporary_name)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
-            writer = csv.DictWriter(handle, fieldnames=CSV_FIELDS, extrasaction="ignore")
-            writer.writeheader(); writer.writerows(rows); handle.flush(); os.fsync(handle.fileno())
-        os.replace(temporary_name, path)
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        return temporary_path
+    except BaseException:
+        temporary_path.unlink(missing_ok=True)
+        raise
+
+
+def _fsync_directory(path: Path) -> None:
+    try:
+        descriptor = os.open(path, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(descriptor)
     finally:
-        Path(temporary_name).unlink(missing_ok=True)
+        os.close(descriptor)
+
+
+def _atomic_publish_pair(csv_path: Path, csv_content: str,
+                          manifest_path: Path, manifest_content: str) -> None:
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    staged: list[Path] = []
+    backups: dict[Path, Path] = {}
+    published: list[Path] = []
+    try:
+        staged.extend([
+            _stage_temp(csv_path, csv_content.encode("utf-8")),
+            _stage_temp(manifest_path, manifest_content.encode("utf-8")),
+        ])
+        for path in (csv_path, manifest_path):
+            if path.exists():
+                backups[path] = _stage_temp(path, path.read_bytes())
+        os.replace(staged[0], csv_path)
+        published.append(csv_path)
+        os.replace(staged[1], manifest_path)
+        published.append(manifest_path)
+        _fsync_directory(csv_path.parent)
+    except BaseException:
+        try:
+            for path in reversed(published):
+                backup = backups.get(path)
+                if backup is not None:
+                    os.replace(backup, path)
+                    backups.pop(path, None)
+                else:
+                    path.unlink(missing_ok=True)
+            for backup in backups.values():
+                backup.unlink(missing_ok=True)
+        except BaseException as rollback_error:
+            raise RuntimeError("output publication failed and rollback failed") from rollback_error
+        raise
+    finally:
+        for path in staged:
+            path.unlink(missing_ok=True)
+        for path in backups.values():
+            path.unlink(missing_ok=True)
+
+
+def _csv_content(rows: list[dict[str, object]]) -> str:
+    stream = io.StringIO(newline="")
+    writer = csv.DictWriter(stream, fieldnames=CSV_FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(rows)
+    return stream.getvalue()
 
 def _read_cache_manifest(path: Path) -> list[dict[str, str]]:
     try: data = json.loads(path.read_text(encoding="utf-8"))
@@ -78,6 +168,8 @@ def run(args: argparse.Namespace, crawler_factory=None) -> dict[str, object]:
             failed_pages.update(summary.failed_pages)
             skipped.update(summary.skipped_events)
             discovered_pages.update(summary.discovered_pages)
+    if failed_pages and not records:
+        raise RuntimeError(f"crawl failed for {len(failed_pages)} page(s); refusing to publish outputs")
     records_parsed = len(records)
     by_url = {}; duplicates = 0
     for record in records:
@@ -100,8 +192,8 @@ def run(args: argparse.Namespace, crawler_factory=None) -> dict[str, object]:
     manifest_path = args.out.with_suffix(".manifest.json")
     manifest = {"parser_version": PARSER_VERSION, "events": [_event_entry(event, cache_manifest, skipped) for event in selected], "pages": pages}
     if not args.dry_run:
-        _atomic_csv(args.out, rows); manifest_path.parent.mkdir(parents=True, exist_ok=True)
-        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        _atomic_publish_pair(args.out, _csv_content(rows), manifest_path,
+                             json.dumps(manifest, ensure_ascii=False, indent=2))
     result = {"events_seen": len(selected), "event_skipped": sum(item["status"] == "skipped" for item in manifest["events"]),
               "detail_discovered": len(detail_urls), "records_parsed": records_parsed, "duplicates": duplicates,
               "parse_errors": len(failed_pages), "missing_abstract": sum(r.abstract is None for r in records),

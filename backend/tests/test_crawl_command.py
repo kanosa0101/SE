@@ -3,6 +3,11 @@ import importlib.util
 import json
 from pathlib import Path
 
+import httpx
+import pytest
+
+
+from app.crawlers.cvf import CvfCrawler
 from app.crawlers.cvf import CrawlSummary, CvfRecord
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "crawl_cvf.py"
@@ -198,3 +203,60 @@ def test_run_passes_timeout_and_retries_to_crawler(tmp_path):
 
     assert captured["timeout"] == 7.5
     assert captured["max_retries"] == 5
+def test_publication_failure_does_not_leave_mismatched_csv_and_manifest(tmp_path, monkeypatch):
+    output = tmp_path / "out.csv"
+    cache = tmp_path / "cache"
+    args = crawl_cvf._parser().parse_args(
+        ["--venues", "CVPR", "--years", "2022", "--out", str(output), "--cache", str(cache)]
+    )
+    monkeypatch.setattr(crawl_cvf, "CvfCrawler", FakeCrawler)
+    crawl_cvf.run(args)
+    previous_csv = output.read_bytes()
+    manifest_path = output.with_suffix(".manifest.json")
+    previous_manifest = manifest_path.read_bytes()
+
+    original_replace = crawl_cvf.os.replace
+
+    def fail_manifest_publication(source, destination):
+        if Path(destination) == manifest_path and str(source).endswith(".tmp"):
+            raise OSError("simulated manifest publication failure")
+        return original_replace(source, destination)
+
+    monkeypatch.setattr(crawl_cvf.os, "replace", fail_manifest_publication)
+    with pytest.raises(OSError, match="simulated manifest publication failure"):
+        crawl_cvf.run(args)
+
+    assert output.read_bytes() == previous_csv
+    assert manifest_path.read_bytes() == previous_manifest
+    assert not list(tmp_path.glob(".*.tmp"))
+
+
+@pytest.mark.parametrize(
+    ("option", "value"),
+    [("--delay", "-0.1"), ("--timeout", "0"), ("--workers", "0"),
+     ("--max-retries", "-1"), ("--limit", "0")],
+)
+def test_parser_rejects_invalid_numeric_values(option, value):
+    with pytest.raises(SystemExit):
+        crawl_cvf._parser().parse_args([option, value])
+
+
+def test_real_crawler_network_failure_does_not_publish_synthetic_output(tmp_path):
+    def fail_request(request):
+        raise httpx.ConnectError("offline", request=request)
+
+    def real_crawler_factory(cache_dir, **kwargs):
+        client = httpx.Client(transport=httpx.MockTransport(fail_request))
+        return CvfCrawler(cache_dir, client=client, **kwargs)
+
+    output = tmp_path / "out.csv"
+    args = crawl_cvf._parser().parse_args(
+        ["--venues", "CVPR", "--years", "2022", "--out", str(output),
+         "--cache", str(tmp_path / "cache"), "--max-retries", "0", "--delay", "0"]
+    )
+
+    with pytest.raises(RuntimeError, match="refusing to publish"):
+        crawl_cvf.run(args, crawler_factory=real_crawler_factory)
+
+    assert not output.exists()
+    assert not output.with_suffix(".manifest.json").exists()
