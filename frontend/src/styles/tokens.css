@@ -1,13 +1,13 @@
 :root {
   color-scheme: dark;
   --surface: #0e131e;
-  --surface-container-low: #090e18;
-  --surface-container: #161c26;
-  --surface-container-high: #1b202a;
-  --surface-container-highest: #252a35;
-  --surface-outline: #303540;
+  --surface-container-lowest: #090e18;
+  --surface-container-low: #161c26;
+  --surface-container: #1b202a;
+  --surface-container-high: #252a35;
+  --surface-container-highest: #303540;
   --text: #dee2f1;
-  --text-soft: #b8bfce;
+  --text-soft: #bcc9cd;
   --text-dim: #869397;
   --outline: #869397;
   --outline-variant: #3d494c;
@@ -36,5 +36,5 @@
   --radius-md: 6px;
   --radius-lg: 8px;
   --shadow: 0 20px 55px rgba(0, 0, 0, 0.34);
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums lining-nums;
 }
