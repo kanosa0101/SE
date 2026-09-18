@@ -1,6 +1,6 @@
 <template>
   <aside v-if="open" class="inspector-backdrop" @click.self="$emit('close')">
-    <section ref="drawerElement" class="inspector-drawer" tabindex="-1" role="dialog" aria-modal="true" :aria-label="`${keyword} 主题详情`" @keydown.esc="$emit('close')">
+    <section ref="drawerElement" class="inspector-drawer" tabindex="-1" role="dialog" aria-modal="true" :aria-label="`${keyword} 主题详情`" @keydown="handleKeydown">
       <header class="inspector-head">
         <div>
           <div class="eyebrow">TOPIC / INSPECTOR</div>
@@ -81,7 +81,7 @@ const props = defineProps({
   keyword: { type: String, default: "" },
   open: { type: Boolean, default: false },
 })
-defineEmits(["close", "select-related", "view-papers"])
+const emit = defineEmits(["close", "select-related", "view-papers"])
 
 const details = ref(null)
 const loading = ref(false)
@@ -112,6 +112,34 @@ async function load() {
     error.value = getErrorMessage(cause, "主题详情暂时不可用")
   } finally {
     if (requestId === loadRequestId.value) loading.value = false
+  }
+}
+
+function handleKeydown(event) {
+  if (event.key === "Escape") {
+    emit("close")
+    return
+  }
+  if (event.key !== "Tab") return
+  const drawer = drawerElement.value
+  if (!drawer) return
+  const focusable = [...drawer.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+  if (!focusable.length) {
+    event.preventDefault()
+    drawer.focus()
+    return
+  }
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (!drawer.contains(document.activeElement)) {
+    event.preventDefault()
+    first.focus()
+  } else if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
   }
 }
 
@@ -150,10 +178,12 @@ watch(() => [props.open, props.keyword], async ([open, keyword], previous) => {
     details.value = null
     error.value = ""
     loading.value = false
+    loadRequestId.value += 1
     if (wasOpen && !open) restoreFocus()
     return
   }
   if (!wasOpen) await focusDrawer()
+  if (!props.open || props.keyword !== keyword) return
   runLoad()
 }, { immediate: true })
 
@@ -206,9 +236,4 @@ onMounted(() => {
 .muted { color: var(--text-dim); font-size: 12px; }
 @media (max-width: 600px) { .inspector-head { padding: 18px; } .drawer-content { padding: 16px 18px 24px; } }
 </style>
-
-
-
-
-
 

@@ -47,6 +47,29 @@ describe("TopicInspectorDrawer", () => {
     expect(wrapper.emitted("close")).toHaveLength(1)
   })
 
+
+  it("traps Tab navigation inside the drawer", async () => {
+    inspector.mockResolvedValue({ data: payload })
+    const wrapper = mount(TopicInspectorDrawer, { props: { keyword: "transformer", open: true }, attachTo: document.body })
+
+    await flushPromises()
+    await nextTick()
+    const drawer = wrapper.get(".inspector-drawer")
+    const buttons = wrapper.findAll("button")
+    const first = buttons[0].element
+    const last = buttons[buttons.length - 1].element
+
+    last.focus()
+    await drawer.trigger("keydown", { key: "Tab" })
+    expect(document.activeElement).toBe(first)
+
+    first.focus()
+    await drawer.trigger("keydown", { key: "Tab", shiftKey: true })
+    expect(document.activeElement).toBe(last)
+
+    wrapper.unmount()
+  })
+
   it("shows a recoverable error state", async () => {
     inspector.mockResolvedValue({
       get data() {
@@ -79,9 +102,4 @@ describe("TopicInspectorDrawer", () => {
   })
 
 })
-
-
-
-
-
 
