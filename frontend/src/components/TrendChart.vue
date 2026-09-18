@@ -38,12 +38,12 @@ function renderChart() {
   const years = props.payload.years || []
   const visibleYears = years.slice(0, Math.max(1, activeIndex.value + 1))
   chart.setOption({
-    color: ["#22d3ee", "#fbbf24", "#34d399", "#fb7185", "#a78bfa"],
+    color: ["#4cd7f6", "#ffb95f", "#4edea3", "#ffb4ab"],
     tooltip: { trigger: "axis" },
-    legend: { top: 4, textStyle: { color: "#a5b4c6" } },
+    legend: { top: 4, textStyle: { color: "#bcc9cd" } },
     grid: { left: 48, right: 22, top: 48, bottom: 32 },
-    xAxis: { type: "category", data: visibleYears, axisLabel: { color: "#94a3b8" }, axisLine: { lineStyle: { color: "#334155" } } },
-    yAxis: { type: "value", name: "热度 / 1000篇", nameTextStyle: { color: "#64748b" }, axisLabel: { color: "#94a3b8" }, splitLine: { lineStyle: { color: "rgba(148,163,184,.12)" } } },
+    xAxis: { type: "category", data: visibleYears, axisLabel: { color: "#869397" }, axisLine: { lineStyle: { color: "#3d494c" } } },
+    yAxis: { type: "value", name: "热度 / 1000篇", nameTextStyle: { color: "#869397" }, axisLabel: { color: "#869397" }, splitLine: { lineStyle: { color: "rgba(134,147,151,.12)" } } },
     series: (props.payload.series || []).slice(0, 8).map((series) => ({
       name: series.keyword,
       type: "line",

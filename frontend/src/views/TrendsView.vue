@@ -14,6 +14,7 @@
     <div v-else-if="error" class="error-box">{{ error }} <button class="button secondary retry" type="button" @click="load">重试</button></div>
     <template v-else>
       <article class="panel chart-panel"><div class="panel-heading"><div><div class="eyebrow">HEAT / TIME SERIES</div><h2>关键词年度热度轨迹</h2></div><span class="mono dim">单位：每千篇论文覆盖数</span></div><div class="panel-body"><TrendChart :payload="payload" :conference="conference" /></div></article>
+      <EvolutionPanel />
       <article class="panel table-panel"><div class="panel-heading"><div><div class="eyebrow">METHOD / DEFINITION</div><h2>如何阅读这张图</h2></div></div><div class="panel-body method-grid"><div><strong>热度</strong><p>某关键词在会议/年份论文中的覆盖率乘以 1000，减少不同年份样本量差异。</p></div><div><strong>联动</strong><p>切换会议或年份后，图表重新从 SQLite 统计接口读取数据，不使用页面硬编码数字。</p></div><div><strong>边界</strong><p>关键词可能来自原始字段或 TF-IDF 提取，来源在论文详情中单独标记。</p></div></div></article>
     </template>
   </AppShell>
@@ -25,6 +26,7 @@ import { useRoute, useRouter } from "vue-router"
 
 import { getErrorMessage, statsApi } from "../api"
 import AppShell from "../components/AppShell.vue"
+import EvolutionPanel from "../components/EvolutionPanel.vue"
 import TrendChart from "../components/TrendChart.vue"
 
 const route = useRoute()

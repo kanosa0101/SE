@@ -10,6 +10,7 @@ export const statsApi = {
   topics: (params = {}) => client.get("/stats/topics", { params }),
   graph: (params = {}) => client.get("/stats/graph", { params }),
   trends: (params = {}) => client.get("/stats/trends", { params }),
+  evolution: (limit = 10) => client.get("/stats/evolution", { params: { limit } }),
   inspector: (keyword) => client.get(`/stats/topics/${encodeURIComponent(keyword)}/inspector`),
 }
 
