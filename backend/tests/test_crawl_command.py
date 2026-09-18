@@ -284,3 +284,18 @@ def test_real_crawler_network_failure_does_not_publish_synthetic_output(tmp_path
 
     assert not output.exists()
     assert not output.with_suffix(".manifest.json").exists()
+def test_paper_code_is_bounded_and_distinguishes_long_urls():
+    first = crawl_cvf._paper_code(
+        "https://openaccess.thecvf.com/content/CVPR2022/html/"
+        "Feng_Non-Generative_Generalized_Zero-Shot_Learning_via_Task-Correlated_"
+        "Disentanglement_and_Controllable_Samples_Synthesis_CVPR_2022_paper.html"
+    )
+    second = crawl_cvf._paper_code(
+        "https://openaccess.thecvf.com/content/CVPR2022/html/"
+        "Feng_Non-Generative_Generalized_Zero-Shot_Learning_via_Task-Correlated_"
+        "Disentanglement_and_Controllable_Samples_Synthesis_Revision_CVPR_2022_paper.html"
+    )
+
+    assert len(first) <= 120
+    assert len(second) <= 120
+    assert first != second

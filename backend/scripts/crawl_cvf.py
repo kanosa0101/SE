@@ -1,6 +1,6 @@
 """Command-line crawl orchestration for CVF Open Access metadata."""
 from __future__ import annotations
-import argparse, csv, io, json, math, os, re, sys, tempfile
+import argparse, csv, hashlib, io, json, math, os, re, sys, tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -59,7 +59,11 @@ def _parser() -> argparse.ArgumentParser:
 
 def _paper_code(source_url: str) -> str:
     stem = re.sub(r"_paper$", "", Path(urlparse(source_url).path).stem, flags=re.I)
-    return re.sub(r"[^A-Za-z0-9]+", "_", stem).strip("_").lower()
+    code = re.sub(r"[^A-Za-z0-9]+", "_", stem).strip("_").lower()
+    if len(code) <= 120:
+        return code
+    suffix = hashlib.sha256(source_url.encode("utf-8")).hexdigest()[:10]
+    return f"{code[:109]}_{suffix}"
 
 def _keywords(values: list[str]) -> str:
     normalized = {normalize_keyword(value) for value in values}

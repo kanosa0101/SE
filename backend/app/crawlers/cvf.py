@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
-from urllib.parse import urljoin
+from urllib.parse import parse_qs, urljoin, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -71,6 +71,22 @@ def parse_index(html: str, base_url: str) -> list[str]:
             seen.add(resolved)
             urls.append(resolved)
     return urls
+
+
+def parse_all_papers_url(html: str, event_url: str) -> str | None:
+    """Return the event's explicit all-papers view when the landing page has one."""
+
+    event_path = urlparse(event_url).path.rstrip("/")
+    soup = BeautifulSoup(html, "html.parser")
+    for link in soup.select("a[href]"):
+        href = link.get("href")
+        if not href:
+            continue
+        resolved = urljoin(event_url, href)
+        parsed = urlparse(resolved)
+        if parsed.path.rstrip("/") == event_path and parse_qs(parsed.query).get("day") == ["all"]:
+            return resolved
+    return None
 
 
 def parse_detail(html: str, conference: str, year: int, source_url: str) -> CvfRecord:
@@ -291,7 +307,9 @@ class CvfCrawler:
         self._record_manifest(url, "failed", last_error)
         return None, False
 
-    def crawl_event(self, conference: str, year: int) -> list[CvfRecord]:
+    def crawl_event(
+        self, conference: str, year: int, limit: int | None = None
+    ) -> list[CvfRecord]:
         event = f"{conference}{year}"
         self._current_event = event
         event_url = f"{self.base_url}/{event}"
@@ -300,6 +318,14 @@ class CvfCrawler:
         if skipped or index_html is None:
             return []
         detail_urls = parse_index(index_html, self.base_url)
+        if not detail_urls:
+            all_papers_url = parse_all_papers_url(index_html, event_url)
+            if all_papers_url:
+                all_index_html, all_skipped = self._fetch_html(all_papers_url)
+                if not all_skipped and all_index_html is not None:
+                    detail_urls = parse_index(all_index_html, self.base_url)
+        if limit is not None:
+            detail_urls = detail_urls[:limit]
         self._current_discovered_pages.update(detail_urls)
         records: list[CvfRecord] = []
         with ThreadPoolExecutor(max_workers=self.workers) as executor:
@@ -338,7 +364,8 @@ class CvfCrawler:
         for conference in conferences:
             for year in years:
                 event = f"{conference}{year}"
-                event_records = self.crawl_event(conference, year)
+                remaining = None if limit is None else max(limit - len(records), 0)
+                event_records = self.crawl_event(conference, year, limit=remaining)
                 if not event_records and self._event_was_not_found(event):
                     skipped_events.append(event)
                 records.extend(event_records)
@@ -379,4 +406,4 @@ class CvfCrawler:
         self.close()
 
 
-__all__ = ["CrawlSummary", "CvfCrawler", "CvfRecord", "parse_detail", "parse_index"]
+__all__ = ["CrawlSummary", "CvfCrawler", "CvfRecord", "parse_all_papers_url", "parse_detail", "parse_index"]

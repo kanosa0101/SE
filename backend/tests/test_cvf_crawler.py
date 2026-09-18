@@ -341,3 +341,59 @@ def test_resume_controls_reuse_of_successful_cached_detail(tmp_path: Path) -> No
         crawler.crawl(["CVPR"], [2024], resume=False)
 
     assert detail_requests == 2
+def test_crawl_follows_all_papers_view_from_event_landing_page(tmp_path: Path) -> None:
+    detail_url = "https://example.test/content/CVPR2025/html/A_Test_Paper_CVPR_2025_paper.html"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/CVPR2025" and request.url.params.get("day") is None:
+            return httpx.Response(
+                200,
+                text='<a href="/CVPR2025?day=all">All Papers</a>',
+                request=request,
+            )
+        if request.url.path == "/CVPR2025" and request.url.params.get("day") == "all":
+            return httpx.Response(200, text=f'<a href="{detail_url}">paper</a>', request=request)
+        if request.url.path.endswith("_paper.html"):
+            return httpx.Response(200, text=read_fixture("cvf_detail.html"), request=request)
+        return httpx.Response(404, request=request)
+
+    with CvfCrawler(
+        tmp_path,
+        base_url="https://example.test",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        max_retries=0,
+        delay=0,
+    ) as crawler:
+        summary = crawler.crawl(["CVPR"], [2025])
+
+    assert len(summary.records) == 1
+    assert summary.records[0].source_url == detail_url
+def test_crawl_limit_bounds_detail_requests(tmp_path: Path) -> None:
+    detail_urls = [
+        f"https://example.test/content/CVPR2025/html/Paper_{index}_paper.html"
+        for index in range(5)
+    ]
+    requested_details: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/CVPR2025" and request.url.params.get("day") is None:
+            return httpx.Response(200, text='<a href="/CVPR2025?day=all">All Papers</a>', request=request)
+        if request.url.path == "/CVPR2025" and request.url.params.get("day") == "all":
+            links = "".join(f'<a href="{url}">paper</a>' for url in detail_urls)
+            return httpx.Response(200, text=links, request=request)
+        if request.url.path.endswith("_paper.html"):
+            requested_details.append(str(request.url))
+            return httpx.Response(200, text=read_fixture("cvf_detail.html"), request=request)
+        return httpx.Response(404, request=request)
+
+    with CvfCrawler(
+        tmp_path,
+        base_url="https://example.test",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        max_retries=0,
+        delay=0,
+    ) as crawler:
+        summary = crawler.crawl(["CVPR"], [2025], limit=2)
+
+    assert len(summary.records) == 2
+    assert len(requested_details) == 2
