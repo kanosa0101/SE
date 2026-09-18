@@ -26,7 +26,7 @@
       <div class="sidebar-foot">
         <div class="foot-kicker">ENGINE BUILD / 05.24.26</div>
         <div class="foot-title">RESEARCH COORDINATES</div>
-        <p>Local corpus · deterministic metrics<br />Signal integrity nominal</p>
+        <p>Local corpus · deterministic metrics<br />Metrics shown when verified</p>
         <div class="coordinates">31.2304° N / 121.4737° E</div>
       </div>
     </aside>

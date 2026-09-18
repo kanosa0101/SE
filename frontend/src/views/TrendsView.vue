@@ -20,29 +20,54 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from "vue"
+import { computed, onMounted, ref, watch } from "vue"
+import { useRoute, useRouter } from "vue-router"
 
 import { getErrorMessage, statsApi } from "../api"
 import AppShell from "../components/AppShell.vue"
 import TrendChart from "../components/TrendChart.vue"
 
-const conference = ref("")
+const route = useRoute()
+const router = useRouter()
 const yearFrom = ref("")
 const yearTo = ref("")
 const payload = ref({ years: [], series: [] })
 const loading = ref(true)
 const error = ref("")
+const loadRequestId = ref(0)
+
+const conference = computed({
+  get: () => typeof route.query.conference === "string" ? route.query.conference.toUpperCase() : "",
+  set: (value) => setConference(value),
+})
+
+async function setConference(value) {
+  const query = { ...route.query }
+  if (value) query.conference = value
+  else delete query.conference
+  await router.replace({ query })
+}
 
 function params() {
   return Object.fromEntries(Object.entries({ conference: conference.value, year_from: yearFrom.value, year_to: yearTo.value }).filter(([, value]) => value !== "" && value !== null))
 }
 async function load() {
+  const requestId = ++loadRequestId.value
   loading.value = true
   error.value = ""
-  try { payload.value = (await statsApi.trends(params())).data } catch (cause) { error.value = getErrorMessage(cause, "趋势接口暂时不可用") } finally { loading.value = false }
+  try {
+    const response = await statsApi.trends(params())
+    if (requestId !== loadRequestId.value) return
+    payload.value = response.data
+  } catch (cause) {
+    if (requestId !== loadRequestId.value) return
+    error.value = getErrorMessage(cause, "趋势接口暂时不可用")
+  } finally {
+    if (requestId === loadRequestId.value) loading.value = false
+  }
 }
-function reset() { conference.value = ""; yearFrom.value = ""; yearTo.value = "" }
-watch(() => [conference.value, yearFrom.value, yearTo.value], load)
+function reset() { setConference(""); yearFrom.value = ""; yearTo.value = "" }
+watch(() => [route.query.conference, yearFrom.value, yearTo.value], load)
 onMounted(load)
 </script>
 
@@ -59,4 +84,3 @@ onMounted(load)
 .retry { margin-left: 8px; min-height: 32px; }
 @media (max-width: 700px) { .page-head { display: block; } .filter-bar { flex-wrap: wrap; } .method-grid { grid-template-columns: 1fr; } }
 </style>
-

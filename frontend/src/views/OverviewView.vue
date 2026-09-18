@@ -67,6 +67,7 @@ const topics = ref([])
 const graph = ref({ nodes: [], links: [] })
 const loading = ref(true)
 const error = ref("")
+const loadRequestId = ref(0)
 
 const yearRange = computed(() => {
   if (!summary.value.year_from || !summary.value.year_to) return "—"
@@ -89,6 +90,7 @@ async function setConference(value) {
   await router.replace({ query })
 }
 async function load() {
+  const requestId = ++loadRequestId.value
   loading.value = true
   error.value = ""
   try {
@@ -98,14 +100,16 @@ async function load() {
       statsApi.topics(params),
       statsApi.graph(params),
     ])
+    if (requestId !== loadRequestId.value) return
     summary.value = overviewResponse.data
     topics.value = topicsResponse.data
     graph.value = graphResponse.data
   } catch (cause) {
+    if (requestId !== loadRequestId.value) return
     summary.value = { ...summary.value, total_papers: null }
     error.value = getErrorMessage(cause, "统计接口暂时不可用")
   } finally {
-    loading.value = false
+    if (requestId === loadRequestId.value) loading.value = false
   }
 }
 function resetFilters() {
@@ -139,4 +143,3 @@ onMounted(load)
 @media (max-width: 1100px) { .metrics-grid { grid-template-columns: repeat(2, 1fr); } .dashboard-grid { grid-template-columns: 1fr; } }
 @media (max-width: 620px) { .page-head { display: block; } .filter-bar { flex-wrap: wrap; } .metrics-grid { grid-template-columns: 1fr; } }
 </style>
-

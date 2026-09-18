@@ -11,6 +11,7 @@ describe("TelemetryBar", () => {
 
     expect(wrapper.find(".telemetry-count").text()).toContain("—")
     expect(wrapper.find(".telemetry-count").text()).not.toContain("12,486")
+    expect(wrapper.text()).not.toContain("LIVE")
   })
 
   it("renders a supplied record count", () => {
