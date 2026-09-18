@@ -108,7 +108,7 @@ npm run build
 当前本地验证记录：
 
 - 后端：13 passed。
-- 前端：1 个工具函数测试通过。
+- 前端：2 个测试通过（工具函数和 PaperTable 交互）。
 - Vite：生产构建成功；ECharts 全量引入产生 chunk size warning，属于体积优化提示，不影响构建结果。
 - 演示数据：seed_demo.py 导入 15 条记录，created=15、skipped=0、errors=0。
 - Docker Compose：docker compose config --quiet 解析成功。
@@ -171,4 +171,6 @@ npm run build
 6. 使用真实数据集时的数据下载时间、字段映射、清洗规则和数据许可证。
 
 这些内容需要提交者根据自己的账号、截图和真实操作补写。
+
+
 

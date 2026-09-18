@@ -94,10 +94,12 @@ AI 处理：
 ## 5. 验收证据
 
 - backend python -m pytest -q：13 passed。
-- frontend npm run test -- --run：1 passed。
+- frontend npm run test -- --run：2 passed。
 - frontend npm run build：成功。
 - docker compose config --quiet：成功。
 - seed_demo.py：15 条演示数据首次导入成功。
 
 这些结果只说明本地仓库在当前环境可验证，不说明华为云已经部署成功。
+
+
 

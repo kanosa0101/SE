@@ -1,5 +1,7 @@
 # CVInsight 编码规范
 
+规范来源：Python PEP 8（https://peps.python.org/pep-0008/）、Black Code Style（https://black.readthedocs.io/en/stable/the_black_code_style/current_style.html）、Vue Style Guide（https://vuejs.org/style-guide/）和 Conventional Commits 1.0.0（https://www.conventionalcommits.org/en/v1.0.0/）。本文件结合课程项目的 FastAPI、Vue 和 Git 约束做了项目化补充。
+
 ## 1. 基本原则
 
 - 代码优先服务于作业需求，避免为单次使用场景增加无必要的抽象。
