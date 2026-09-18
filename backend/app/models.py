@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -8,7 +8,11 @@ from app.db import Base
 
 class Paper(Base):
     __tablename__ = "papers"
-    __table_args__ = (UniqueConstraint("normalized_title", "conference", "year", name="uq_paper_identity"),)
+    __table_args__ = (
+        UniqueConstraint("normalized_title", "conference", "year", name="uq_paper_identity"),
+        Index("ix_papers_conference_year", "conference", "year"),
+        Index("ix_papers_normalized_title", "normalized_title"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
@@ -20,6 +24,8 @@ class Paper(Base):
     year: Mapped[int] = mapped_column(Integer, nullable=False)
     source: Mapped[str] = mapped_column(String(40), nullable=False, default="manual")
     source_url: Mapped[str | None] = mapped_column(String(1000))
+    crawled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    parser_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 

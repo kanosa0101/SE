@@ -1,6 +1,6 @@
 from collections.abc import Generator
 
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import get_settings
@@ -17,6 +17,15 @@ def make_engine(database_url: str) -> Engine:
 
 def init_db(engine: Engine) -> None:
     Base.metadata.create_all(engine)
+    with engine.begin() as connection:
+        existing_columns = {column["name"] for column in inspect(connection).get_columns("papers")}
+        migrations = (
+            ("crawled_at", "DATETIME"),
+            ("parser_version", "VARCHAR(40)"),
+        )
+        for column_name, column_type in migrations:
+            if column_name not in existing_columns:
+                connection.execute(text(f"ALTER TABLE papers ADD COLUMN {column_name} {column_type}"))
 
 
 def session_factory(engine: Engine) -> sessionmaker[Session]:

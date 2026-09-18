@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -15,6 +16,8 @@ class PaperBase(BaseModel):
     year: int = Field(ge=1990, le=2100)
     source: str = Field(default="manual", max_length=40)
     source_url: str | None = Field(default=None, max_length=1000)
+    crawled_at: datetime | None = None
+    parser_version: str | None = Field(default=None, max_length=40)
     keywords: list[str] = Field(default_factory=list)
 
     @field_validator("title")
@@ -38,6 +41,8 @@ class PaperUpdate(BaseModel):
     conference: Conference | None = None
     year: int | None = Field(default=None, ge=1990, le=2100)
     source_url: str | None = Field(default=None, max_length=1000)
+    crawled_at: datetime | None = None
+    parser_version: str | None = Field(default=None, max_length=40)
     keywords: list[str] | None = None
 
 

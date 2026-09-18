@@ -2,6 +2,7 @@ import csv
 import io
 import re
 from collections.abc import Iterable
+from datetime import datetime
 
 from pydantic import ValidationError
 from sqlalchemy import func, or_, select
@@ -49,6 +50,8 @@ def serialize_paper(paper: Paper) -> PaperRead:
             "year": paper.year,
             "source": paper.source,
             "source_url": paper.source_url,
+            "crawled_at": paper.crawled_at,
+            "parser_version": paper.parser_version,
             "keywords": [relation.keyword.name for relation in paper.paper_keywords],
         }
     )
@@ -157,6 +160,15 @@ def delete_paper(session: Session, paper_id: int) -> bool:
     return True
 
 
+def _parse_crawled_at(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"invalid crawled_at timestamp: {value}") from exc
+
+
 def _payload_from_row(row: dict[str, str], default_source: str = "csv") -> PaperCreate:
     raw_keywords = row.get("keywords", "") or ""
     keywords = [value.strip() for value in re.split(r"[|,;]", raw_keywords) if value.strip()]
@@ -169,6 +181,8 @@ def _payload_from_row(row: dict[str, str], default_source: str = "csv") -> Paper
         year=int(row.get("year", "0")),
         source=row.get("source") or default_source,
         source_url=row.get("source_url") or None,
+        crawled_at=_parse_crawled_at(row.get("crawled_at")),
+        parser_version=row.get("parser_version") or None,
         keywords=keywords,
     )
 

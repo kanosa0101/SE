@@ -57,6 +57,27 @@ def test_csv_import_reports_created_and_invalid_rows(client):
     assert response.json()["errors"] == 1
 
 
+def test_csv_import_preserves_cvf_provenance(client):
+    csv_data = io.BytesIO(
+        b"title,conference,year,source,source_url,parser_version,crawled_at\n"
+        b"CVF Paper,CVPR,2024,cvf,https://openaccess.thecvf.com/paper.pdf,cvf-v2,2026-09-18T12:34:56Z\n"
+    )
+
+    response = client.post(
+        "/api/papers/import",
+        files={"file": ("papers.csv", csv_data, "text/csv")},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["created"] == 1
+
+    papers = client.get("/api/papers").json()["items"]
+    assert papers[0]["source"] == "cvf"
+    assert papers[0]["source_url"] == "https://openaccess.thecvf.com/paper.pdf"
+    assert papers[0]["parser_version"] == "cvf-v2"
+    assert papers[0]["crawled_at"] == "2026-09-18T12:34:56Z"
+
+
 def test_lookup_without_configured_source_returns_explainable_error(client):
     response = client.get("/api/papers/lookup", params={"title": "Unknown Paper"})
 
