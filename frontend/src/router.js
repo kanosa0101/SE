@@ -9,11 +9,11 @@ import TrendsView from "./views/TrendsView.vue"
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: "/", name: "overview", component: OverviewView },
-    { path: "/trends", name: "trends", component: TrendsView },
-    { path: "/papers", name: "papers", component: PapersView },
-    { path: "/import", name: "import", component: ImportView },
-    { path: "/about", name: "about", component: AboutView },
+    { path: "/", name: "overview", component: OverviewView, meta: { index: "01" } },
+    { path: "/trends", name: "trends", component: TrendsView, meta: { index: "02" } },
+    { path: "/papers", name: "papers", component: PapersView, meta: { index: "03" } },
+    { path: "/import", name: "import", component: ImportView, meta: { index: "04" } },
+    { path: "/about", name: "about", component: AboutView, meta: { index: "05" } },
   ],
 })
 
