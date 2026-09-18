@@ -58,7 +58,26 @@ AI 处理：
 
 可复核证据：
 - commit 03c7b15、e5e0a85、edc3690
-- 前端构建成功，后端 13 项测试通过
+- 前端构建成功，当前后端 72 项测试、前端 29 项测试通过
+
+### 案例 D：接入真实抓取数据并补齐附加功能
+
+用户需求摘要：
+“附加功能需要实现了解更多、年度热词演变、更多功能；论文使用爬取，数量扩展 100 倍。”
+
+AI 处理：
+- 在现有数据模型上增加主题检查器、年度热词演变、数据质量审计和 CSV/BibTeX 导出。
+- 编写 CVF 抓取脚本，使用 BeautifulSoup 解析会议页面，加入缓存、限速、重试、断点清单和 source_url 去重。
+- 对抓取失败保持可追溯状态；本次 ECCV 2022/2024 页面返回 404，因此没有用合成论文填充。
+
+采纳情况：
+采纳。data/cvf_crawled_1500.csv 中保留 1502 条真实 CVF 记录，导入后的本地数据库共 1517 条（另含 15 条 fixture）；扩展页面均调用真实 API 并有加载、空数据和错误状态。
+
+可复核证据：
+- backend/scripts/crawl_cvf.py
+- backend/app/api/stats.py、backend/app/api/papers.py
+- frontend/src/components/TopicInspectorDrawer.vue、EvolutionPanel.vue、DataQualityCard.vue
+- commits 785d0ec、2c425bb、11b9a4e、fe63ec7
 
 ## 3. 采纳/拒绝判定规则
 
@@ -93,13 +112,12 @@ AI 处理：
 
 ## 5. 验收证据
 
-- backend python -m pytest -q：13 passed。
-- frontend npm run test -- --run：2 passed。
-- frontend npm run build：成功。
+- backend python -m pytest -q：72 passed。
+- frontend npm run test -- --run：29 passed。
+- frontend npm run build：成功；仅有 ECharts chunk size warning。
+- data/cvf_crawled_1500.csv：1502 条唯一 source_url 的真实 CVF 记录，source=CVF、parser_version=cvf-v1。
+- 本地数据库验收：1517 条记录，CVF 1502 条、fixture 15 条；1502 条抓取记录的 crawled_at 均有值。
 - docker compose config --quiet：成功。
-- seed_demo.py：15 条演示数据首次导入成功。
+- 云端 CodeArts、云主机公网访问和真实在线检索源：未在当前环境验证。
 
 这些结果只说明本地仓库在当前环境可验证，不说明华为云已经部署成功。
-
-
-
