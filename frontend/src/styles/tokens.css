@@ -1,0 +1,22 @@
+:root {
+  color-scheme: dark;
+  --ink-950: #070c16;
+  --ink-900: #0b1220;
+  --ink-850: #101a2c;
+  --ink-800: #152238;
+  --line: rgba(148, 163, 184, 0.16);
+  --line-strong: rgba(34, 211, 238, 0.38);
+  --text: #f1f5f9;
+  --text-soft: #a5b4c6;
+  --text-dim: #66768e;
+  --cyan: #22d3ee;
+  --amber: #fbbf24;
+  --coral: #fb7185;
+  --green: #34d399;
+  --serif: "Noto Serif SC", "Songti SC", Georgia, serif;
+  --sans: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --shadow: 0 16px 42px rgba(0, 0, 0, 0.28);
+}
