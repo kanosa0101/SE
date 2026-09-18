@@ -56,7 +56,8 @@ def _read_cache_manifest(path: Path) -> list[dict[str, str]]:
 def _event_entry(event, cache_manifest, skipped):
     venue, year = event; name = f"{venue}{year}"; url = f"https://openaccess.thecvf.com/{name}"
     matches = [entry for entry in cache_manifest if entry.get("url") == url]
-    latest = matches[-1] if matches else {}
+    timestamped = [entry for entry in matches if entry.get("recorded_at")]
+    latest = max(timestamped, key=lambda entry: entry["recorded_at"]) if timestamped else (matches[-1] if matches else {})
     if name in skipped or latest.get("status") == "not_found":
         return {"event": name, "url": url, "status": "skipped", "reason": latest.get("error", "HTTP 404")}
     if latest.get("status") == "failed":
@@ -66,21 +67,23 @@ def _event_entry(event, cache_manifest, skipped):
 def run(args: argparse.Namespace, crawler_factory=None) -> dict[str, object]:
     crawler_factory = crawler_factory or CvfCrawler
     selected = [(venue, year) for venue, year in EVENT_CANDIDATES if venue in args.venues and year in args.years]
-    records: list[CvfRecord] = []; skipped: set[str] = set()
+    records: list[CvfRecord] = []; skipped: set[str] = set(); failed_pages: set[str] = set()
     with crawler_factory(args.cache, delay=args.delay, workers=args.workers) as crawler:
         for venue, year in selected:
             remaining = None if args.limit is None else max(args.limit - len(records), 0)
             summary: CrawlSummary = crawler.crawl([venue], [year], limit=remaining, resume=args.resume)
             records.extend(summary.records)
             if args.limit is not None: records = records[:args.limit]
+            failed_pages.update(summary.failed_pages)
             skipped.update(summary.skipped_events)
+    records_parsed = len(records)
     by_url = {}; duplicates = 0
     for record in records:
         if record.source_url in by_url: duplicates += 1
         else: by_url[record.source_url] = record
     records = list(by_url.values()); cache_manifest = _read_cache_manifest(args.cache / "manifest.json")
     pages = [entry for entry in cache_manifest if "/content/" in entry.get("url", "")]
-    detail_urls = {entry["url"] for entry in pages}; failed_pages = {entry["url"] for entry in pages if entry.get("status") == "failed"}
+    detail_urls = {entry["url"] for entry in pages}
     crawled_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     rows = [{"title": r.title, "paper_code": _paper_code(r.source_url), "abstract": r.abstract or "", "authors": r.authors or "",
              "conference": r.conference, "year": r.year, "source": "CVF", "source_url": r.source_url,
@@ -91,7 +94,7 @@ def run(args: argparse.Namespace, crawler_factory=None) -> dict[str, object]:
         _atomic_csv(args.out, rows); manifest_path.parent.mkdir(parents=True, exist_ok=True)
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     result = {"events_seen": len(selected), "event_skipped": sum(item["status"] == "skipped" for item in manifest["events"]),
-              "detail_discovered": len(detail_urls), "records_parsed": len(records), "duplicates": duplicates,
+              "detail_discovered": len(detail_urls), "records_parsed": records_parsed, "duplicates": duplicates,
               "parse_errors": len(failed_pages), "missing_abstract": sum(r.abstract is None for r in records),
               "csv": str(args.out), "manifest": str(manifest_path)}
     print("\n".join(f"{key}={value}" for key, value in result.items())); return result

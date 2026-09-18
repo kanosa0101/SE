@@ -7,6 +7,7 @@ import json
 import os
 import tempfile
 import threading
+from datetime import datetime, timezone
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -172,6 +173,8 @@ class CvfCrawler:
             clean_entry = {"url": url, "status": status}
             if isinstance(entry.get("error"), str):
                 clean_entry["error"] = entry["error"]
+            if isinstance(entry.get("recorded_at"), str):
+                clean_entry["recorded_at"] = entry["recorded_at"]
             manifest.append(clean_entry)
         return manifest
 
@@ -192,7 +195,11 @@ class CvfCrawler:
             return [entry.copy() for entry in self._manifest]
 
     def _record_manifest(self, url: str, status: str, error: str | None = None) -> None:
-        entry = {"url": url, "status": status}
+        entry = {
+            "url": url,
+            "status": status,
+            "recorded_at": datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z"),
+        }
         if error:
             entry["error"] = error
         with self._manifest_lock:

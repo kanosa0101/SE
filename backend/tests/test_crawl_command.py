@@ -98,3 +98,51 @@ def test_event_candidates_are_exact_and_dry_run_does_not_write_outputs(tmp_path,
     crawl_cvf.main(["--out", str(output), "--cache", str(tmp_path / "cache"), "--dry-run"])
     assert not output.exists()
     assert not output.with_suffix(".manifest.json").exists()
+
+class DuplicateCrawler(FakeCrawler):
+    def crawl(self, conferences, years, limit=None, resume=False):
+        record = CvfRecord(
+            title="A paper", authors="A. Author", abstract="Abstract",
+            conference=conferences[0], year=years[0],
+            source_url="https://openaccess.thecvf.com/content/CVPR2022/html/A_paper.html",
+            pdf_url=None, keywords=[], parser_version="cvf-v1", parse_warnings=[],
+        )
+        return CrawlSummary(records=[record, record], failed_pages=[])
+
+
+def test_records_parsed_counts_records_before_deduplication(tmp_path):
+    output = tmp_path / "duplicates.csv"
+    result = crawl_cvf.run(
+        crawl_cvf._parser().parse_args(["--venues", "CVPR", "--years", "2022", "--out", str(output), "--cache", str(tmp_path / "cache")]),
+        crawler_factory=DuplicateCrawler,
+    )
+
+    assert result["records_parsed"] == 2
+    assert result["duplicates"] == 1
+    assert len(list(csv.DictReader(output.open(encoding="utf-8", newline="")))) == 1
+
+
+class RecoveryCrawler(FakeCrawler):
+    def crawl(self, conferences, years, limit=None, resume=False):
+        event = f"{conferences[0]}{years[0]}"
+        url = f"https://openaccess.thecvf.com/{event}"
+        manifest = [
+            {"url": url, "status": "failed", "error": "old failure", "recorded_at": "2026-09-18T00:00:00Z"},
+            {"url": url, "status": "not_found", "recorded_at": "2026-09-18T00:01:00Z"},
+            {"url": url, "status": "fetched", "recorded_at": "2026-09-18T00:02:00Z"},
+        ]
+        self.manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        return CrawlSummary(records=[], failed_pages=[], skipped_events=[])
+
+
+def test_event_status_uses_newer_success_after_older_failure(tmp_path):
+    output = tmp_path / "recovery.csv"
+    crawl_cvf.run(
+        crawl_cvf._parser().parse_args(
+            ["--venues", "CVPR", "--years", "2022", "--out", str(output), "--cache", str(tmp_path / "cache")]
+        ),
+        crawler_factory=RecoveryCrawler,
+    )
+
+    manifest = json.loads(output.with_suffix(".manifest.json").read_text(encoding="utf-8"))
+    assert manifest["events"] == [{"event": "CVPR2022", "url": "https://openaccess.thecvf.com/CVPR2022", "status": "complete"}]
