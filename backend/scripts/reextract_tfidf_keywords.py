@@ -10,6 +10,7 @@ from app.config import get_settings
 from app.db import init_db, make_engine, session_factory
 from app.models import Keyword, Paper, PaperKeyword
 from app.services.papers import _replace_keywords
+from sqlalchemy import text
 
 
 def main() -> None:
@@ -33,10 +34,16 @@ def main() -> None:
                 continue
             _replace_keywords(session, paper, [])
             rebuilt += 1
+        # 先落库本轮重建的关联，再用 SQL 判断真孤儿，避免 autoflush 关闭时误判。
+        session.flush()
         orphan_ids = [
-            keyword.id
-            for keyword in session.query(Keyword).all()
-            if not keyword.paper_keywords
+            row[0]
+            for row in session.execute(
+                text(
+                    "SELECT k.id FROM keywords k WHERE NOT EXISTS "
+                    "(SELECT 1 FROM paper_keywords pk WHERE pk.keyword_id = k.id)"
+                )
+            ).all()
         ]
         if orphan_ids:
             session.query(Keyword).filter(Keyword.id.in_(orphan_ids)).delete(
