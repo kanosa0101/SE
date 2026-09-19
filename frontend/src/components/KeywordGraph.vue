@@ -1,18 +1,36 @@
 <template>
-  <div ref="chartElement" class="graph-canvas" aria-label="关键词共现关系图" />
+  <div>
+    <div class="chart-toolbar">
+      <button class="button secondary" type="button" :aria-pressed="strongOnly" @click="strongOnly = !strongOnly">
+        {{ strongOnly ? "显示全部关系" : "仅看强关系" }}
+      </button>
+      <span class="legend-note">
+        连线粗细与深浅 ∝ 共现论文数（当前 {{ edgeRange.min }}—{{ edgeRange.max }} 篇，平方根映射）
+      </span>
+    </div>
+    <div ref="chartElement" class="graph-canvas" aria-label="关键词共现关系图" />
+  </div>
 </template>
 
 <script setup>
 import * as echarts from "../utils/echarts"
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
+
+import { edgeVisual, STRONG_EDGE_THRESHOLD } from "../utils/graph"
 
 const props = defineProps({
   graph: { type: Object, default: () => ({ nodes: [], links: [] }) },
 })
 const emit = defineEmits(["select"])
 const chartElement = ref(null)
+const strongOnly = ref(false)
 let chart
 let observer
+
+const edgeRange = computed(() => {
+  const values = (props.graph.links || []).map((link) => Number(link.value) || 0)
+  return { min: values.length ? Math.min(...values) : 0, max: values.length ? Math.max(...values) : 0 }
+})
 
 // ECharts force 布局在高边密度下会震荡发散，这里用固定迭代的
 // Fruchterman-Reingold 预计算坐标，保证布局确定、紧凑且可复现。
@@ -75,7 +93,13 @@ function renderGraph() {
     symbolSize: Math.max(9, Math.min(30, 6 + Number(node.value || 0) * 0.09)),
     itemStyle: { color: node.name.includes("diffusion") ? "#fbbf24" : "#22d3ee" },
   }))
-  const links = props.graph.links || []
+  const maxValue = edgeRange.value.max
+  const links = (props.graph.links || [])
+    .filter((link) => !strongOnly.value || Number(link.value) >= STRONG_EDGE_THRESHOLD)
+    .map((link) => ({
+      ...link,
+      lineStyle: { ...edgeVisual(link.value, maxValue) },
+    }))
   const pos = computeLayout(nodes, links, width, height)
   nodes.forEach((node, i) => {
     node.x = pos[i].x
@@ -83,7 +107,15 @@ function renderGraph() {
   })
   chart.setOption({
     backgroundColor: "transparent",
-    tooltip: { trigger: "item" },
+    tooltip: {
+      trigger: "item",
+      formatter: (params) => {
+        if (params.dataType === "edge") {
+          return `${params.data.source} ⇄ ${params.data.target}<br/>共现论文数：${params.data.value}`
+        }
+        return `${params.data.name}<br/>覆盖论文数：${params.data.value}`
+      },
+    },
     series: [{
       type: "graph",
       layout: "none",
@@ -92,7 +124,7 @@ function renderGraph() {
       roam: true,
       draggable: true,
       label: { show: true, color: "#dbeafe", fontSize: 10 },
-      lineStyle: { color: "#64748b", opacity: 0.3, width: 1 },
+      lineStyle: { color: "#64748b", opacity: 0.3, width: 1, curveness: 0 },
     }],
   }, true)
 }
@@ -110,7 +142,7 @@ onMounted(async () => {
   observer.observe(chartElement.value)
   renderGraph()
 })
-watch(() => props.graph, renderGraph, { deep: true })
+watch([() => props.graph, strongOnly], renderGraph, { deep: true })
 onBeforeUnmount(() => {
   observer?.disconnect()
   chart?.dispose()
@@ -118,5 +150,8 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.chart-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.chart-toolbar .button { min-height: 30px; padding: 0 10px; font-size: 12px; }
+.legend-note { color: var(--text-dim); font-size: 11px; line-height: 1.6; }
 .graph-canvas { width: 100%; min-height: 420px; }
 </style>

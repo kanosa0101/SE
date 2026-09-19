@@ -6,6 +6,7 @@
       <article class="panel method-card"><div class="eyebrow">02 / KEYWORDS</div><h2>关键词处理</h2><p>优先使用原始关键词；缺失时对标题与摘要执行英文停用词过滤、别名归一和 TF-IDF 提取，并在记录中标明提取方法。</p></article>
       <article class="panel method-card"><div class="eyebrow">03 / METRIC</div><h2>热度公式</h2><div class="formula">heat = keyword_papers / total_papers × 1000‰</div><p>热门关键词定义为：在当前筛选范围内，按"覆盖论文数"降序排列且过滤泛化载体词（model、image、data 等）后的前 10 个关键词。覆盖率单位是千分比（‰）：每 1000 篇论文中包含该关键词的论文数量。同一篇论文通常携带多个关键词，因此各关键词的覆盖率之和可以超过 1000‰；单个关键词的覆盖率本身不会超过 1000‰。统计单位是"包含关键词的论文数"，不是关键词在摘要中的原始出现次数。</p></article>
       <article class="panel method-card"><div class="eyebrow">04 / LIMITS</div><h2>使用边界</h2><p>热度仅用于研究趋势探索，不代表论文质量、学术影响力或会议录用评价。样本覆盖范围变化会影响比较结果。</p></article>
+      <article class="panel method-card"><div class="eyebrow">05 / GRAPH</div><h2>关系图谱编码</h2><p>图谱取覆盖论文数前 50 的关键词。节点大小表示覆盖论文数；边表示两个关键词在同一篇论文中共同出现，连线粗细与深浅按共现论文数（1—447 篇）的平方根比例映射，悬停可查看数值。"仅看强关系"开关只显示共现论文数 ≥ 40 的连线，仅影响显示、不修改底层数据。</p></article>
     </section>
     <article class="panel pipeline"><div class="panel-heading"><div><div class="eyebrow">PIPELINE / TRACEABILITY</div><h2>数据处理流程</h2></div></div><div class="pipeline-steps"><div v-for="(step, index) in steps" :key="step" class="pipeline-step"><span>0{{ index + 1 }}</span><strong>{{ step }}</strong><i v-if="index < steps.length - 1">→</i></div></div></article>
     <DataQualityCard />

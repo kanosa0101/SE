@@ -40,7 +40,7 @@ CVInsight 是软件工程实践第二次作业的可运行实现。系统面向 
 │  ├─ tests/               # 后端测试
 │  └─ requirements.txt
 ├─ frontend/
-│  ├─ src/components/      # AppShell、论文表格、表单、图表
+│  ├─ src/components/      # AppShell、论文表格、表单、图表（KeywordGraph 含共现边粗细/透明度编码与强关系开关）
 │  ├─ src/views/           # 总览、论文库、导入、趋势、说明
 │  └─ src/utils/           # 可测试的格式化与筛选函数
 ├─ data/demo_papers.csv
@@ -141,7 +141,7 @@ npm run build
 | POST | /api/papers/import | 上传 CSV 并批量入库 |
 | GET | /api/stats/overview | 总量与年份范围 |
 | GET | /api/stats/topics | Top 10 热词及热度 |
-| GET | /api/stats/graph | 关键词节点和共现边 |
+| GET | /api/stats/graph | 关键词节点和共现边（node: `{name, value=覆盖论文数}`；link: `{source, target, value=共现论文数}`，取覆盖数前 50 的关键词） |
 | GET | /api/stats/trends | 多年份会议趋势 |
 | GET | /api/stats/topics/{keyword}/inspector | 主题详情、相关词和代表论文 |
 | GET | /api/stats/evolution | 按年度返回热词演变帧 |
@@ -162,7 +162,7 @@ backend/scripts/crawl_cvf.py 使用 BeautifulSoup 解析 CVF 会议页，保存 
 
 1. 用户或导入文件提供关键词时，先进行小写化、空白清理、别名归一化和去重。
 2. 没有提供关键词时，对标题和摘要执行 TF-IDF，去除常见停用词，取有限数量的高分词。
-3. 关键词关系边表示两篇论文关键词集合在同一篇论文中的共现次数。
+3. 关键词关系边表示两篇论文关键词集合在同一篇论文中的共现：边上的 `value` 是共现论文数，即两个关键词共同出现的论文数量。图谱可视化中，连线粗细与透明度按 `sqrt(value / max(value))` 映射到 1—5px 与 16%—58% 透明度（当前数据范围 1—447 篇），悬停节点可查看具体数值；"仅看强关系"开关默认关闭，打开后只显示共现论文数 ≥ 40（约前 25% 的强关系）的连线，仅影响显示、不修改数据。
 4. 热度定义为 keyword 覆盖论文数 / 当前筛选范围论文总数 × 1000。
 5. 趋势图展示当前数据库记录数，不把演示夹具的数量解释为领域真实发表量。
 
