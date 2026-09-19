@@ -1,5 +1,11 @@
 # CVInsight：顶会论文热词统计平台
 
+| 项目 | 内容 |
+| --- | --- |
+| 学号 | 102400330 |
+| 作业链接 | [软件工程实践第二次作业——与AI结对编程（顶会热词统计）](https://bbs.csdn.net/topics/620526318) |
+| 代码规范 | [codestyle.md](./codestyle.md) |
+
 CVInsight 是软件工程实践第二次作业的可运行实现。系统面向 CVPR、ICCV、ECCV 论文元数据，提供论文采集、论文库维护、Top 10 热词统计、关键词关系图谱和多年份趋势观察。
 
 本仓库采用 Vue 3 + FastAPI + SQLite。Stitch 只用于前期原型和视觉方向探索；仓库中的页面、组件和接口代码按照本项目的数据模型重新实现，没有把 Stitch 生成的独立 HTML 作为应用代码直接接入。项目源码、测试和本 README 是可复核的工程内容；AI 协作记录、博客草稿和 PSP 属于提交者的个人课程材料，保留在本地但不纳入本项目 Git。
@@ -110,13 +116,14 @@ npm run build
 
 当前本地验证记录：
 
-- 后端：72 passed；包含 API、数据库迁移、统计扩展和 CVF 抓取器测试。
+- 后端：78 passed；包含 API、数据库迁移、统计扩展、CVF 抓取器和在线检索会议映射测试。
 - 前端：29 passed；覆盖真实 API 状态、主题检查器、年度演变、质量审计和导出交互。
-- Vite：生产构建成功；ECharts 全量引入产生 chunk size warning，属于体积优化提示，不影响构建结果。
+- Vite：生产构建成功；ECharts 已改为按需引入并单独分包（echarts chunk 约 525 kB），构建无体积警告。
 - CVF 数据：data/cvf_crawled_1500.csv 为 1502 条唯一 source_url 的真实抓取记录，source=CVF、parser_version=cvf-v1；导入后数据库共 1517 条（含 15 条 fixture）。
 - 抓取边界：CVPR 2022–2025、ICCV 2023/2025 的页面成功取样；本次 ECCV 2022/2024 地址返回 404，因此没有用合成数据替代。
+- 在线检索：backend/.env 已配置 OpenAlex 公共接口（https://api.openalex.org/works），/api/papers/lookup 已实测返回 CVPR 论文并正确映射会议缩写。
 - Docker Compose：docker compose config --quiet 解析成功。
-- 未验证项：华为云 CodeArts 构建、云主机公网访问和真实在线检索源，需要在拥有对应账号和地址后执行。
+- 未验证项：华为云 CodeArts 构建、云主机公网访问，需要在拥有对应账号后执行。
 
 ## API 入口
 
