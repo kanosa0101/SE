@@ -116,7 +116,7 @@ npm run build
 
 当前本地验证记录：
 
-- 后端：78 passed；包含 API、数据库迁移、统计扩展、CVF 抓取器和在线检索会议映射测试。
+- 后端：80 passed；包含 API、数据库迁移、统计扩展、CVF 抓取器、在线检索会议映射和趋势排序测试。
 - 前端：29 passed；覆盖真实 API 状态、主题检查器、年度演变、质量审计和导出交互。
 - Vite：生产构建成功；ECharts 已改为按需引入并单独分包（echarts chunk 约 525 kB），构建无体积警告。
 - CVF 数据：data/cvf_crawled_1500.csv 为 1502 条唯一 source_url 的真实抓取记录，source=CVF、parser_version=cvf-v1；导入后数据库共 1517 条（含 15 条 fixture）。
