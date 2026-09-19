@@ -18,6 +18,11 @@ STOP_WORDS = {
     "paper", "propose", "proposes", "proposed", "present", "presents", "presented",
     "novel", "based", "method", "methods", "approach", "approaches",
     "result", "results", "show", "shows", "shown", "demonstrate", "demonstrated",
+    "achieve", "achieves", "achieved", "improve", "improves", "improved",
+    "outperform", "outperforms", "outperformed", "performance", "existing",
+    "between", "different", "various", "multiple", "several", "new", "high", "low",
+    "one", "two", "three", "within", "across", "without", "toward", "towards",
+    "during", "over", "under", "further", "respectively", "significantly",
 }
 
 ALIASES = {
