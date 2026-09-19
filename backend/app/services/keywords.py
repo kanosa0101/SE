@@ -7,6 +7,17 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 STOP_WORDS = {
     "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in", "into",
     "is", "it", "of", "on", "or", "that", "the", "this", "to", "using", "via", "with",
+    # 代词、限定词、助动词与常用连词，不构成研究方向
+    "our", "ours", "their", "them", "they", "its", "these", "those", "there",
+    "can", "could", "will", "may", "might", "shall", "should", "would",
+    "was", "were", "been", "being", "has", "have", "had", "does", "did",
+    "also", "however", "more", "most", "such", "than", "then", "thus",
+    "when", "which", "while", "who", "whose", "why", "how", "what", "where",
+    "both", "each", "other", "some", "only", "very", "but", "not",
+    # 论文写作套话，同样不指向具体研究领域
+    "paper", "propose", "proposes", "proposed", "present", "presents", "presented",
+    "novel", "based", "method", "methods", "approach", "approaches",
+    "result", "results", "show", "shows", "shown", "demonstrate", "demonstrated",
 }
 
 ALIASES = {

@@ -22,3 +22,16 @@ def test_extract_keywords_ignores_common_words_and_returns_deterministic_terms()
         provided_keywords=[],
         limit=5,
     )
+
+
+def test_extract_keywords_filters_academic_boilerplate_terms():
+    result = extract_keywords(
+        title="our proposed method can detect objects in novel scenes",
+        abstract="We present our approach and show that the results improve over previous methods.",
+        provided_keywords=[],
+        limit=8,
+    )
+
+    for boilerplate in ("our", "can", "method", "propose", "result", "show"):
+        assert boilerplate not in result
+    assert "object" in result
