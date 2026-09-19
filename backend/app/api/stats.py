@@ -8,7 +8,7 @@ from app.db import get_db
 from app.models import Keyword, Paper, PaperKeyword
 from app.schemas import QualityAudit, TopicInspector, YearlyEvolution
 from app.services.keywords import is_informative_keyword, normalize_keyword
-from app.services.metrics import build_cooccurrence_graph, build_quality_audit, build_topic_inspector, build_yearly_evolution, calculate_heat
+from app.services.metrics import build_topic_inspector, build_yearly_evolution, calculate_heat
 
 router = APIRouter(prefix="/api/stats", tags=["statistics"])
 
@@ -236,6 +236,34 @@ def evolution(limit: int = Query(default=10, ge=1, le=100), db: Session = Depend
 
 @router.get("/quality", response_model=QualityAudit)
 def quality(db: Session = Depends(get_db)) -> QualityAudit:
-    papers = db.scalars(select(Paper).order_by(Paper.id)).all()
-    rows = [{"abstract": paper.abstract, "authors": paper.authors, "source_url": paper.source_url, "source": paper.source, "conference": paper.conference, "year": paper.year, "keywords": paper.paper_keywords} for paper in papers]
-    return build_quality_audit(rows)
+    # 全部用聚合查询：逐 ORM 对象懒加载关键词在 12k+ 记录下是 N+1，会拖垮页面切换。
+    total = db.scalar(select(func.count(Paper.id))) or 0
+    keyworded = db.scalar(select(func.count(distinct(PaperKeyword.paper_id)))) or 0
+    missing = {
+        field: db.scalar(
+            select(func.count(Paper.id)).where(
+                func.coalesce(getattr(Paper, field), "") == ""
+            )
+        ) or 0
+        for field in ("abstract", "authors", "source_url")
+    }
+    source_counts = dict(db.execute(select(Paper.source, func.count(Paper.id)).group_by(Paper.source)).all())
+    matrix = db.execute(
+        select(Paper.conference, Paper.year, func.count(Paper.id)).group_by(Paper.conference, Paper.year)
+    ).all()
+    return QualityAudit(
+        total=total,
+        keyword_coverage=round(keyworded / total * 100, 1) if total else 0.0,
+        missing_fields=missing,
+        source_breakdown=sorted(
+            (
+                {"source": (source or "unknown").strip() or "unknown", "papers": count}
+                for source, count in source_counts.items()
+            ),
+            key=lambda item: item["source"],
+        ),
+        conference_year_matrix=[
+            {"conference": conference, "year": year, "papers": count}
+            for conference, year, count in sorted(matrix, key=lambda item: (item[0], item[1]))
+        ],
+    )

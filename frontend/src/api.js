@@ -2,7 +2,8 @@ import axios from "axios"
 
 const client = axios.create({
   baseURL: "/api",
-  timeout: 8000,
+  // 统计接口在 12k+ 记录、SQLite 冷缓存时可达数秒，给足重查询余量。
+  timeout: 15000,
 })
 
 export const statsApi = {
