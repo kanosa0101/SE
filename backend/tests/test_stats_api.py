@@ -44,3 +44,36 @@ def test_topics_graph_and_trends_return_structured_statistics(client):
     assert len(topics.json()) <= 10
     assert {node["name"] for node in graph.json()["nodes"]}
     assert trends.json()["series"]
+
+
+def test_trends_returns_top_keywords_by_coverage_not_alphabetical(client):
+    seed_papers(client)
+    for index in range(3):
+        client.post(
+            "/api/papers",
+            json={
+                "title": f"Segmentation Study {index}",
+                "conference": "CVPR",
+                "year": 2024,
+                "abstract": "segmentation",
+                "keywords": ["segmentation"],
+                "source": "demo",
+            },
+        )
+    client.post(
+        "/api/papers",
+        json={
+            "title": "Aardvark Tracking",
+            "conference": "CVPR",
+            "year": 2024,
+            "abstract": "tracking",
+            "keywords": ["aardvark"],
+            "source": "demo",
+        },
+    )
+
+    response = client.get("/api/stats/trends", params={"conference": "CVPR", "limit": 1})
+
+    assert response.status_code == 200
+    keywords = [series["keyword"] for series in response.json()["series"]]
+    assert keywords == ["segmentation"]

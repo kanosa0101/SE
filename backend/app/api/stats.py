@@ -105,6 +105,7 @@ def trends(
     conference: str | None = Query(default=None, pattern="^(CVPR|ICCV|ECCV)$"),
     year_from: int | None = Query(default=None, ge=1990, le=2100),
     year_to: int | None = Query(default=None, ge=1990, le=2100),
+    limit: int = Query(default=10, ge=1, le=50),
     db: Session = Depends(get_db),
 ) -> dict:
     rows = _keyword_rows(db, conference, year_from, year_to)
@@ -115,8 +116,18 @@ def trends(
             totals[key] = db.scalar(
                 select(func.count(Paper.id)).where(Paper.conference == key[0], Paper.year == key[1])
             ) or 0
+    # 只保留覆盖论文数最高的关键词，避免全量序列淹没图表。
+    keyword_papers: dict[str, set[int]] = defaultdict(set)
+    for row in rows:
+        keyword_papers[row["keyword"]].add(row["paper_id"])
+    top_keywords = {
+        keyword
+        for keyword, _ in sorted(keyword_papers.items(), key=lambda item: (-len(item[1]), item[0]))[:limit]
+    }
     grouped: dict[tuple[str, str, int], list[dict]] = defaultdict(list)
     for row in rows:
+        if row["keyword"] not in top_keywords:
+            continue
         grouped[(row["keyword"], row["conference"], row["year"])].append(row)
     series_map: dict[str, list[dict]] = defaultdict(list)
     for (keyword, venue, year), keyword_rows in grouped.items():
@@ -128,11 +139,15 @@ def trends(
             }
         )
     years = sorted({row["year"] for row in rows})
+    ranked = sorted(
+        series_map.items(),
+        key=lambda item: (-len(keyword_papers[item[0]]), item[0]),
+    )
     return {
         "years": years,
         "series": [
             {"keyword": keyword, "data": sorted(data, key=lambda item: (item["year"], item["conference"]))}
-            for keyword, data in sorted(series_map.items())
+            for keyword, data in ranked
         ],
     }
 
