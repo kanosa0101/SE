@@ -104,7 +104,14 @@ def test_csv_import_rejects_malformed_crawled_at(client):
 
 
 def test_lookup_without_configured_source_returns_explainable_error(client):
-    response = client.get("/api/papers/lookup", params={"title": "Unknown Paper"})
+    from app.config import Settings, get_settings
+    from app.main import app
+
+    app.dependency_overrides[get_settings] = lambda: Settings(lookup_url=None)
+    try:
+        response = client.get("/api/papers/lookup", params={"title": "Unknown Paper"})
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
 
     assert response.status_code == 502
     assert "未配置" in response.json()["detail"]
