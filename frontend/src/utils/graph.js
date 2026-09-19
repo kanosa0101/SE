@@ -8,8 +8,9 @@ export const EDGE_MAX_WIDTH = 5
 export const EDGE_MIN_OPACITY = 0.16
 export const EDGE_MAX_OPACITY = 0.58
 
-// "仅看强关系"开关的阈值：共现论文数达到该值的边约为整体前 25%。
-export const STRONG_EDGE_THRESHOLD = 40
+// 图谱默认只显示"强关系"：共现论文数达到该值的边约为整体前 10%，
+// 避免上千条弱边淹没主干结构；可用"显示全部关系"开关查看全量。
+export const STRONG_EDGE_THRESHOLD = 75
 
 export function edgeVisual(value, maxValue) {
   const numeric = Number(value)

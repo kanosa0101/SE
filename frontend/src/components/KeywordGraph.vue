@@ -5,7 +5,7 @@
         {{ strongOnly ? "显示全部关系" : "仅看强关系" }}
       </button>
       <span class="legend-note">
-        连线粗细与深浅 ∝ 共现论文数（当前 {{ edgeRange.min }}—{{ edgeRange.max }} 篇，平方根映射）
+        默认只显示共现 ≥ {{ STRONG_EDGE_THRESHOLD }} 篇的强关系（约前 10%）；连线粗细与深浅 ∝ 共现论文数（当前 {{ edgeRange.min }}—{{ edgeRange.max }} 篇，平方根映射）
       </span>
     </div>
     <div ref="chartElement" class="graph-canvas" aria-label="关键词共现关系图" />
@@ -23,7 +23,7 @@ const props = defineProps({
 })
 const emit = defineEmits(["select"])
 const chartElement = ref(null)
-const strongOnly = ref(false)
+const strongOnly = ref(true)
 let chart
 let observer
 
@@ -94,17 +94,19 @@ function renderGraph() {
     itemStyle: { color: node.name.includes("diffusion") ? "#fbbf24" : "#22d3ee" },
   }))
   const maxValue = edgeRange.value.max
+  // 布局始终基于完整边集计算，过滤只决定画哪些边——
+  // 否则孤立节点被斥力推散、核心团挤压，且切换开关时节点会跳动。
+  const pos = computeLayout(nodes, props.graph.links || [], width, height)
+  nodes.forEach((node, i) => {
+    node.x = pos[i].x
+    node.y = pos[i].y
+  })
   const links = (props.graph.links || [])
     .filter((link) => !strongOnly.value || Number(link.value) >= STRONG_EDGE_THRESHOLD)
     .map((link) => ({
       ...link,
       lineStyle: { ...edgeVisual(link.value, maxValue) },
     }))
-  const pos = computeLayout(nodes, links, width, height)
-  nodes.forEach((node, i) => {
-    node.x = pos[i].x
-    node.y = pos[i].y
-  })
   chart.setOption({
     backgroundColor: "transparent",
     tooltip: {

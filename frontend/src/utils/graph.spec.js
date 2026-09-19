@@ -26,7 +26,7 @@ describe("edgeVisual", () => {
     expect(edgeVisual(10, 0)).toEqual({ width: EDGE_MIN_WIDTH, opacity: EDGE_MIN_OPACITY })
   })
 
-  it("keeps the strong-relation threshold inside the top quarter of values", () => {
-    expect(STRONG_EDGE_THRESHOLD).toBeGreaterThan(0)
+  it("uses a strong-relation threshold near the top decile of values", () => {
+    expect(STRONG_EDGE_THRESHOLD).toBe(75)
   })
 })
