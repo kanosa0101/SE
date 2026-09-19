@@ -68,7 +68,10 @@ def parse_index(html: str, base_url: str) -> list[str]:
     soup = BeautifulSoup(html, "html.parser")
     urls: list[str] = []
     seen: set[str] = set()
-    for link in soup.select('a[href*="/content/"]'):
+    # 老年份（2016-2020）主页的论文链接是相对路径 content_cvpr_2016/...，
+    # 新年份 day=all 页是绝对路径 /content/CVPR2021/...，两种形式都要命中，
+    # 最终由 _paper.html 后缀检查兜底防止误匹配。
+    for link in soup.select('a[href*="content"]'):
         href = link.get("href")
         if not href or not href.lower().split("?", 1)[0].endswith("_paper.html"):
             continue

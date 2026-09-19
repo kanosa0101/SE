@@ -9,8 +9,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.crawlers.cvf import PARSER_VERSION, CrawlSummary, CvfCrawler, CvfRecord
 from app.services.keywords import normalize_keyword
 
-EVENT_CANDIDATES = [("CVPR", 2022), ("CVPR", 2023), ("CVPR", 2024), ("CVPR", 2025),
-                    ("ICCV", 2023), ("ICCV", 2025), ("ECCV", 2022), ("ECCV", 2024)]
+EVENT_CANDIDATES = [("CVPR", 2016), ("CVPR", 2017), ("CVPR", 2018), ("CVPR", 2019),
+                    ("CVPR", 2020), ("CVPR", 2021),
+                    ("CVPR", 2022), ("CVPR", 2023), ("CVPR", 2024), ("CVPR", 2025),
+                    ("ICCV", 2017), ("ICCV", 2019), ("ICCV", 2021),
+                    ("ICCV", 2023), ("ICCV", 2025),
+                    ("ECCV", 2018), ("ECCV", 2020),
+                    ("ECCV", 2022), ("ECCV", 2024)]
 CSV_FIELDS = ["title", "paper_code", "abstract", "authors", "conference", "year", "source",
               "source_url", "keywords", "crawled_at", "parser_version"]
 

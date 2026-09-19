@@ -46,6 +46,27 @@ def test_topics_graph_and_trends_return_structured_statistics(client):
     assert trends.json()["series"]
 
 
+def test_topics_excludes_generic_carrier_words(client):
+    client.post(
+        "/api/papers",
+        json={
+            "title": "Generic Carrier Study",
+            "conference": "CVPR",
+            "year": 2024,
+            "abstract": "model",
+            "keywords": ["model", "segmentation"],
+            "source": "demo",
+        },
+    )
+
+    response = client.get("/api/stats/topics")
+
+    assert response.status_code == 200
+    keywords = [topic["keyword"] for topic in response.json()]
+    assert "model" not in keywords
+    assert "segmentation" in keywords
+
+
 def test_trends_returns_top_keywords_by_coverage_not_alphabetical(client):
     seed_papers(client)
     for index in range(3):

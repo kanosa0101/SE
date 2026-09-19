@@ -25,6 +25,25 @@ def test_parse_index_deduplicates_and_resolves_relative_links() -> None:
     ]
 
 
+LEGACY_INDEX_HTML = """
+<html><body>
+  <a href="content_cvpr_2016/html/Legacy_Paper_One_CVPR_2016_paper.html">Paper One</a>
+  <a href="content_cvpr_2016/html/Legacy_Paper_Two_CVPR_2016_paper.html">Paper Two</a>
+  <a href="content_cvpr_2016/html/Legacy_Paper_Two_CVPR_2016_paper.html">Paper Two duplicate</a>
+  <a href="/menu">Menu</a>
+</body></html>
+"""
+
+
+def test_parse_index_supports_legacy_relative_content_links() -> None:
+    urls = parse_index(LEGACY_INDEX_HTML, "https://openaccess.thecvf.com")
+
+    assert urls == [
+        "https://openaccess.thecvf.com/content_cvpr_2016/html/Legacy_Paper_One_CVPR_2016_paper.html",
+        "https://openaccess.thecvf.com/content_cvpr_2016/html/Legacy_Paper_Two_CVPR_2016_paper.html",
+    ]
+
+
 def test_parse_detail_extracts_cvf_metadata() -> None:
     detail_url = "https://openaccess.thecvf.com/content/CVPR2024/html/A_Test_Paper_CVPR_2024_paper.html"
 

@@ -1,4 +1,4 @@
-from app.services.keywords import extract_keywords, normalize_keyword
+from app.services.keywords import extract_keywords, is_informative_keyword, normalize_keyword
 
 
 def test_normalize_keyword_merges_case_and_aliases():
@@ -35,3 +35,14 @@ def test_extract_keywords_filters_academic_boilerplate_terms():
     for boilerplate in ("our", "can", "method", "propose", "result", "show"):
         assert boilerplate not in result
     assert "object" in result
+
+
+def test_is_informative_keyword_filters_generic_and_fragment_terms():
+    for generic in ("model", "image", "data", "learning", "dataset", "feature", "object", "task"):
+        assert not is_informative_keyword(generic)
+    # 论文自起名缩写碎片不进入排名
+    for fragment in ("abo", "aat", "xyz"):
+        assert not is_informative_keyword(fragment)
+    # 常见技术路线缩写与研究方向词保留
+    for informative in ("gan", "vit", "nerf", "detection", "segmentation", "diffusion", "3d"):
+        assert is_informative_keyword(informative)

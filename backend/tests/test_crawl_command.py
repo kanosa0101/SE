@@ -97,8 +97,13 @@ def test_command_writes_schema_manifest_and_resumes_cached_details(tmp_path, mon
 def test_event_candidates_are_exact_and_dry_run_does_not_write_outputs(tmp_path, monkeypatch):
     monkeypatch.setattr(crawl_cvf, "CvfCrawler", FakeCrawler)
     assert crawl_cvf.EVENT_CANDIDATES == [
+        ("CVPR", 2016), ("CVPR", 2017), ("CVPR", 2018), ("CVPR", 2019),
+        ("CVPR", 2020), ("CVPR", 2021),
         ("CVPR", 2022), ("CVPR", 2023), ("CVPR", 2024), ("CVPR", 2025),
-        ("ICCV", 2023), ("ICCV", 2025), ("ECCV", 2022), ("ECCV", 2024),
+        ("ICCV", 2017), ("ICCV", 2019), ("ICCV", 2021),
+        ("ICCV", 2023), ("ICCV", 2025),
+        ("ECCV", 2018), ("ECCV", 2020),
+        ("ECCV", 2022), ("ECCV", 2024),
     ]
     output = tmp_path / "dry.csv"
     crawl_cvf.main(["--out", str(output), "--cache", str(tmp_path / "cache"), "--dry-run"])

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import Keyword, Paper, PaperKeyword
 from app.schemas import QualityAudit, TopicInspector, YearlyEvolution
-from app.services.keywords import normalize_keyword
+from app.services.keywords import is_informative_keyword, normalize_keyword
 from app.services.metrics import build_cooccurrence_graph, build_quality_audit, build_topic_inspector, build_yearly_evolution, calculate_heat
 
 router = APIRouter(prefix="/api/stats", tags=["statistics"])
@@ -77,6 +77,8 @@ def topics(
     total = db.scalar(select(func.count(Paper.id)).where(*_paper_conditions(conference, year_from, year_to))) or 0
     by_keyword: dict[str, list[dict]] = defaultdict(list)
     for row in rows:
+        if not is_informative_keyword(row["keyword"]):
+            continue
         by_keyword[row["keyword"]].append(row)
     result = []
     for keyword, keyword_rows in by_keyword.items():
@@ -116,9 +118,11 @@ def trends(
             totals[key] = db.scalar(
                 select(func.count(Paper.id)).where(Paper.conference == key[0], Paper.year == key[1])
             ) or 0
-    # 只保留覆盖论文数最高的关键词，避免全量序列淹没图表。
+    # 只保留覆盖论文数最高且具备方向信息量的关键词，避免泛化载体词淹没图表。
     keyword_papers: dict[str, set[int]] = defaultdict(set)
     for row in rows:
+        if not is_informative_keyword(row["keyword"]):
+            continue
         keyword_papers[row["keyword"]].add(row["paper_id"])
     top_keywords = {
         keyword
