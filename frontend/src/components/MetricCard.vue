@@ -21,6 +21,6 @@ defineProps({
 .tone-green { border-top-color: var(--green); }
 .tone-coral { border-top-color: var(--coral); }
 .metric-label, .metric-caption { color: var(--text-soft); font: 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
-.metric-value { margin: 14px 0 10px; color: var(--text); font: 600 clamp(24px, 3vw, 34px)/1 var(--mono); font-variant-numeric: tabular-nums lining-nums; }
+.metric-value { margin: 14px 0 10px; color: var(--text); font: 600 clamp(24px, 3vw, 34px)/1.15 var(--mono); font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; }
 .metric-caption { color: var(--text-dim); font-size: 9px; }
 </style>

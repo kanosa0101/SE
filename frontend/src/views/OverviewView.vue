@@ -11,8 +11,10 @@
 
     <div class="filter-bar panel">
       <label>会议 <select :value="conference" class="select" @change="setConference($event.target.value)"><option value="">全部顶会</option><option value="CVPR">CVPR</option><option value="ICCV">ICCV</option><option value="ECCV">ECCV</option></select></label>
-      <label>起始年 <input v-model.number="filters.year_from" class="field year-field" type="number" min="1990" max="2100" placeholder="不限" /></label>
-      <label>结束年 <input v-model.number="filters.year_to" class="field year-field" type="number" min="1990" max="2100" placeholder="不限" /></label>
+      <div class="year-group">
+        <label>起始年 <input v-model.number="filters.year_from" class="field year-field" type="number" min="1990" max="2100" placeholder="不限" /></label>
+        <label>结束年 <input v-model.number="filters.year_to" class="field year-field" type="number" min="1990" max="2100" placeholder="不限" /></label>
+      </div>
       <button class="button secondary" type="button" @click="resetFilters">重置筛选</button>
     </div>
 
@@ -29,6 +31,7 @@
       <section class="dashboard-grid">
         <article class="panel topics-panel">
           <div class="panel-heading"><div><div class="eyebrow">RANK / TOPIC COVERAGE</div><h2>Top 10 热门关键词</h2></div><span class="mono dim">最多 10 项</span></div>
+          <p class="topic-note">按覆盖论文数降序排列，已排除 model、image 等泛化载体词，只保留具体研究方向。覆盖率（‰）= 覆盖论文数 / 当前范围论文总数 × 1000；同一篇论文可携带多个关键词，因此各词覆盖率之和可超过 1000‰。</p>
           <div class="panel-body topic-list">
             <button v-for="(topic, index) in topics" :key="topic.keyword" class="topic-row" type="button" :aria-label="`了解更多：${topic.keyword}`" @click="selectTopic(topic.keyword)">
               <span class="rank">{{ String(index + 1).padStart(2, '0') }}</span>
@@ -143,7 +146,9 @@ onMounted(load)
 .filter-bar { display: flex; align-items: end; gap: 12px; padding: 14px 16px; margin-bottom: 18px; }
 .filter-bar label { display: grid; gap: 5px; color: var(--text-soft); font-size: 12px; }
 .filter-bar .select { min-width: 150px; }
+.year-group { display: flex; align-items: end; gap: 12px; }
 .year-field { width: 110px; }
+.topic-note { margin: -6px 18px 10px; color: var(--text-dim); font-size: 11px; line-height: 1.7; }
 .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
 .dashboard-grid { display: grid; grid-template-columns: minmax(300px, 0.8fr) minmax(420px, 1.2fr); gap: 18px; }
 .topic-list { display: grid; gap: 6px; }

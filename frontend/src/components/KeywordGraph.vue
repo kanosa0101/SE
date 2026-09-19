@@ -18,7 +18,7 @@ function renderGraph() {
   if (!chart) return
   const nodes = (props.graph.nodes || []).map((node) => ({
     ...node,
-    symbolSize: Math.max(18, Math.min(62, 14 + Number(node.value || 0) * 8)),
+    symbolSize: Math.max(9, Math.min(30, 6 + Number(node.value || 0) * 0.09)),
     itemStyle: { color: node.name.includes("diffusion") ? "#fbbf24" : "#22d3ee" },
   }))
   chart.setOption({
@@ -31,9 +31,9 @@ function renderGraph() {
       links: props.graph.links || [],
       roam: true,
       draggable: true,
-      label: { show: true, color: "#dbeafe", fontSize: 11 },
-      lineStyle: { color: "#64748b", opacity: 0.45, width: 1 },
-      force: { repulsion: 130, edgeLength: [60, 150] },
+      label: { show: true, color: "#dbeafe", fontSize: 10 },
+      lineStyle: { color: "#64748b", opacity: 0.35, width: 1 },
+      force: { repulsion: 200, edgeLength: [60, 150] },
     }],
   }, true)
 }
