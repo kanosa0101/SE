@@ -36,7 +36,7 @@
 - Modify frontend/src/api.js for extension endpoints and export downloads.
 - Create frontend/src/components/TopicInspectorDrawer.spec.js and frontend/src/components/EvolutionPanel.spec.js.
 - Modify frontend/src/components/PaperTable.spec.js and frontend/src/utils/filters.spec.js where the new interactions need coverage.
-- Modify README.md, docs/blog-draft.md, docs/ai-collaboration.md, and docs/psp.md with actual crawl and validation evidence after the run.
+- Modify README.md, .gitignore, and project design/plan records with actual crawl and validation evidence after the run. Keep the blog draft, AI collaboration record, and PSP as local course materials outside Git.
 
 ---
 
@@ -252,7 +252,7 @@ The command must support:
 ~~~text
 --venues CVPR ICCV ECCV
 --years 2022 2023 2024 2025
---out ../data/cvf_2022_2025.csv
+--out ../data/cvf_crawled_1500.csv
 --cache ../data/raw/cvf
 --delay 0.25
 --workers 4
@@ -690,9 +690,8 @@ git commit -m "feat: add exports and data quality observatory"
 ### Task 10: Execute the real crawl and import approximately 1,500 records
 
 **Files:**
-- Create data/raw/cvf/.gitkeep
-- Create data/cvf_2022_2025.csv by the crawl command
-- Create data/cvf_2022_2025.manifest.json by the crawl command
+- Create data/cvf_crawled_1500.csv as the tracked real-data sample
+- Keep the raw HTML cache and crawl manifest outside the tracked project
 - Modify backend/cvinsight.db locally only; keep it ignored
 
 - [ ] Step 1: Verify the bounded crawl first
@@ -716,20 +715,20 @@ Expected: titles, authors, conference, year, abstracts or explicit missing value
 Run:
 
 ~~~powershell
-python scripts/crawl_cvf.py --years 2022 2023 2024 2025 --venues CVPR ICCV ECCV --cache ../data/raw/cvf --out ../data/cvf_2022_2025.csv --delay 0.25 --workers 4 --resume
+python scripts/crawl_cvf.py --years 2022 2023 2024 2025 --venues CVPR ICCV ECCV --cache ../data/raw/cvf --out ../data/cvf_crawled_1500.csv --delay 0.25 --workers 4 --resume
 ~~~
 
-Record the terminal summary in docs/blog-draft.md. The target is approximately 1,500 records, not a license to duplicate records. Record the exact actual count and all skipped event/parse counts.
+Record the terminal summary in the local course blog draft, which is outside Git. The target is approximately 1,500 records, not a license to duplicate records. Record the exact actual count and all skipped event/parse counts in the local submission materials.
 
 - [ ] Step 3: Import the crawl output
 
 Run:
 
 ~~~powershell
-python scripts/seed_demo.py --file ../data/cvf_2022_2025.csv
+curl.exe -X POST -F "file=@../data/cvf_crawled_1500.csv" http://127.0.0.1:8000/api/papers/import
 ~~~
 
-The script must report created, skipped, and errors. If the existing script does not accept a file argument, add the argument before this step and retain the default demo fixture behavior.
+The import API reports created, skipped, and errors. The seed_demo.py script remains a fixture-only helper and is not used for the real crawl sample.
 
 - [ ] Step 4: Verify data volume and coverage
 
@@ -744,10 +743,10 @@ Expected: paper count is at least 100 times the original fixture count if public
 
 - [ ] Step 5: Commit only reproducible crawl metadata
 
-Do not commit the raw HTML cache or local SQLite database. Commit the manifest, CSV only if its size is acceptable for the course repository, and the updated data-source documentation:
+Do not commit the raw HTML cache, crawl manifest, or local SQLite database. Commit the verified CSV sample only when its size is acceptable for the course repository, together with README and project documentation:
 
 ~~~powershell
-git add data/cvf_2022_2025.manifest.json data/cvf_2022_2025.csv docs/blog-draft.md README.md
+git add data/cvf_crawled_1500.csv README.md
 git commit -m "data: import crawled CVF conference corpus"
 ~~~
 
@@ -758,10 +757,12 @@ If the CSV is too large for CodeArts, commit the manifest and an exact reproduct
 ### Task 11: Full visual, functional, and release verification
 
 **Files:**
-- Modify: docs/blog-draft.md
-- Modify: docs/ai-collaboration.md
-- Modify: docs/psp.md
 - Modify: README.md
+- Modify: .gitignore
+- Modify: docs/superpowers/specs/2026-09-18-cvinsight-design.md
+- Modify: docs/superpowers/specs/2026-09-18-cvinsight-extensions-design.md
+- Modify: docs/superpowers/plans/2026-09-18-cvinsight-implementation.md
+- Keep local, outside Git: docs/blog-draft.md, docs/ai-collaboration.md, docs/psp.md
 
 - [ ] Step 1: Run the complete local verification
 
@@ -802,13 +803,13 @@ Fix only measurable mismatches found in this review, then rerun the affected tes
 
 - [ ] Step 4: Update evidence documents
 
-Record exact crawl count, event coverage, parser version, missing-field counts, test counts, build result, and local URL. Record only verified evidence; do not replace missing values with invented cloud claims; keep the cloud deployment section explicitly pending until it is actually run.
+Record exact crawl count, event coverage, parser version, missing-field counts, test counts, build result, and local URL in README and the project design/plan records. Keep the detailed blog, AI collaboration, and PSP files as local course materials; do not replace missing values with invented cloud claims; keep cloud deployment explicitly pending until it is actually run.
 
 - [ ] Step 5: Commit documentation evidence
 
 ~~~powershell
-git add README.md docs/blog-draft.md docs/ai-collaboration.md docs/psp.md
-git commit -m "docs: record crawl and extension verification evidence"
+git add README.md .gitignore docs/superpowers/specs docs/superpowers/plans
+git commit -m "docs: finalize project evidence boundary"
 ~~~
 
 - [ ] Step 6: Merge and publish the next release
@@ -835,6 +836,3 @@ Expected: CodeArts receives the new dev and main heads plus v1.1.0; verify with 
 - Tests: every new parser/API/interactive feature has a failing-first test task and focused test command.
 - Deployment evidence: Task 11 records only locally verified facts; cloud deployment remains an explicit external action.
 - Every step is concrete: each task names exact files, commands, expected output, and a commit message.
-
-
-

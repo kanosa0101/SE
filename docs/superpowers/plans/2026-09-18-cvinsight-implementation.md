@@ -19,8 +19,8 @@
 - Create `backend/tests/`: database, keyword, metric, API, and failure-path tests.
 - Create `frontend/src/`: Vue shell, routes, API client, components, views, styles, and utility tests.
 - Create `data/demo_papers.csv`: explicitly labelled development fixture; never present it as a complete corpus.
-- Create `codestyle.md`, `docs/psp.csv`, `docs/ai-collaboration.md`, and deployment files.
-- Modify `README.md` and `blog/第二次.md` only with verified facts and real evidence.
+- Create `codestyle.md` and deployment files.
+- Update `README.md` and project design/plan documents only with verified facts and real evidence. PSP、AI 协作记录和博客草稿属于个人课程材料，保留在本地但不纳入 Git。
 
 ## Task 1: Scaffold both applications and a health test
 
@@ -354,7 +354,7 @@ git commit -m "build: add production serving and deployment configuration"
 
 ## Task 10: Complete assignment documentation and evidence
 
-**Files:** `README.md`, `codestyle.md`, `docs/psp.csv`, `docs/ai-collaboration.md`, `blog/第二次.md`
+**Files:** `README.md`, `codestyle.md`, deployment documentation, and project design/plan records
 
 - [ ] **Step 1: Add code standards**
 
@@ -375,7 +375,7 @@ Include assignment link, repository, student number, data source, algorithm, run
 - [ ] **Step 5: Commit documentation**
 
 ~~~powershell
-git add README.md codestyle.md docs blog/第二次.md
+git add README.md codestyle.md deploy docs/superpowers .gitignore
 git commit -m "docs: document assignment process and AI collaboration"
 ~~~
 
@@ -406,7 +406,7 @@ Record the exact passing count and build exit code.
 
 - [ ] **Step 3: Run the requirement checklist**
 
-Verify all five API-backed features, five Vue routes, SQLite persistence, source labels, empty/error states, README, codestyle, PSP, AI record, and local production health check. Report any unmet item instead of marking it complete.
+Verify all API-backed features, five Vue routes, SQLite persistence, source labels, empty/error states, README, codestyle, project design/plan records, and local production health check. PSP、AI 记录和博客作为本地课程材料单独核对，不作为 Git 项目内容。Report any unmet item instead of marking it complete.
 
 - [ ] **Step 4: Confirm readable Git history**
 
@@ -423,4 +423,3 @@ git tag -a 1.0.0 -m "CVInsight 1.0.0"
 - [ ] **Step 6: Re-run the complete verification on merged main**
 
 Run the backend suite, frontend suite/build, and production health checks again from the merged commit. Report actual results and any external cloud-deployment blocker.
-

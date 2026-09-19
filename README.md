@@ -2,7 +2,7 @@
 
 CVInsight 是软件工程实践第二次作业的可运行实现。系统面向 CVPR、ICCV、ECCV 论文元数据，提供论文采集、论文库维护、Top 10 热词统计、关键词关系图谱和多年份趋势观察。
 
-本仓库采用 Vue 3 + FastAPI + SQLite。Stitch 只用于前期原型和视觉方向探索；仓库中的页面、组件和接口代码按照本项目的数据模型重新实现，没有把 Stitch 生成的独立 HTML 作为应用代码直接接入。完整的 AI 协作与来源说明见 docs/ai-collaboration.md。
+本仓库采用 Vue 3 + FastAPI + SQLite。Stitch 只用于前期原型和视觉方向探索；仓库中的页面、组件和接口代码按照本项目的数据模型重新实现，没有把 Stitch 生成的独立 HTML 作为应用代码直接接入。项目源码、测试和本 README 是可复核的工程内容；AI 协作记录、博客草稿和 PSP 属于提交者的个人课程材料，保留在本地但不纳入本项目 Git。
 
 ## 当前实现范围
 
@@ -173,9 +173,9 @@ backend/scripts/crawl_cvf.py 使用 BeautifulSoup 解析 CVF 会议页，保存 
 - release：合并 main 后创建 v1.0.0 标签。
 - 提交信息使用 feat、fix、test、docs、chore 等前缀，并要求一个提交只对应一个可解释的工作单元。
 
-## 作业交付提醒
+## 课程提交材料（不纳入本项目 Git）
 
-作业博客还需要补齐：
+以下材料属于个人课程提交附件，保留在本地即可，不作为项目源码提交。
 
 1. Stitch 原型公开链接和原型截图。
 2. 真实的华为云 CodeArts/云主机地址、构建记录和部署截图。

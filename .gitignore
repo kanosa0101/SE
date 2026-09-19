@@ -16,3 +16,8 @@ coverage/
 *.png
 *.gif
 *.mp4
+
+# Personal course-submission materials; kept locally, not project source
+docs/ai-collaboration.md
+docs/blog-draft.md
+docs/psp.md

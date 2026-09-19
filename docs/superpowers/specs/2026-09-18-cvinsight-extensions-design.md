@@ -75,7 +75,7 @@ AppShell 负责全局结构；MetricCard、TelemetryBar、ConferenceChips、Topi
 爬虫命令接口：
 
 ~~~text
-python scripts/crawl_cvf.py --years 2022 2023 2024 2025 --venues CVPR ICCV ECCV --out ../data/cvf_2022_2025.csv --cache ../data/raw/cvf --delay 0.25 --workers 4
+python scripts/crawl_cvf.py --years 2022 2023 2024 2025 --venues CVPR ICCV ECCV --out ../data/cvf_crawled_1500.csv --cache ../data/raw/cvf --delay 0.25 --workers 4
 python scripts/crawl_cvf.py --resume --limit 20
 ~~~
 
@@ -83,7 +83,7 @@ python scripts/crawl_cvf.py --resume --limit 20
 
 ### 4.3 可追溯字段
 
-每条记录保留 source=cvf、source_url、conference、year、crawled_at、parser_version。当前 Paper 模型需要增加 crawled_at、parser_version 和 citation_key；旧的手工/fixture 数据使用空值或已有 source 标记。
+每条记录保留 source=CVF、source_url、conference、year、crawled_at、parser_version。Paper 模型使用 crawled_at、parser_version 和 paper_code 保存抓取 provenance；旧的手工/fixture 数据使用空值或已有 source 标记。
 
 ## 5. 后端 API 设计
 
@@ -93,13 +93,13 @@ python scripts/crawl_cvf.py --resume --limit 20
   - 返回 keyword、paper_count、heat、conference_breakdown、year_series、related_keywords、representative_papers。
   - 代表论文只返回必要元数据，完整摘要仍可从论文详情接口获取。
 - GET /api/stats/evolution
-  - 参数 conference、year_from、year_to、limit。
+  - 参数 limit；当前年度演变页面使用完整数据库年份帧。
   - 返回 years 和每一年按 heat 降序排列的 topics。
 - GET /api/stats/quality
-  - 返回 total、missing_abstract、missing_source_url、keyword_coverage、source_breakdown、conference_year_matrix。
+  - 返回 total、keyword_coverage、missing_fields、source_breakdown、conference_year_matrix。
 - GET /api/papers/export
   - 复用论文筛选参数，format=csv 或 format=bibtex。
-  - 通过 StreamingResponse 返回下载文件，不在内存中复制无界数据。
+  - 通过 StreamingResponse 返回 CSV 或 BibTeX 下载文件，并复用论文筛选参数。
 
 现有接口保持兼容。统计服务抽出可测试的聚合函数，避免在路由中拼接业务逻辑。
 
@@ -131,7 +131,7 @@ TrendsView 增加 EvolutionPanel：
 
 - PapersView 增加 [ EXPORT CSV ] 和 [ EXPORT BIBTEX ] Ghost Action，沿用原型的 JetBrains Mono 括号文案。
 - AboutView 增加真实数据质量审计卡：完整摘要比例、原文链接比例、关键词来源比例、按会议/年份的数据矩阵。
-- ImportView 增加爬取说明和最近一次 manifest 摘要，但不在浏览器端执行高耗时爬取。
+- ImportView 展示来源保留和数据质量审计；高耗时 CVF 抓取只通过 backend/scripts/crawl_cvf.py 执行，不在浏览器端运行。
 - 侧栏和页面底部增加当前数据源、抓取时间和 parser version。
 
 ## 7. 数据量和性能
@@ -184,3 +184,9 @@ TrendsView 增加 EvolutionPanel：
 - 不把爬虫抓取量解释成完整的官方录用全集，除非目录覆盖和字段完整性已验证。
 - 不在未配置云端凭据时声称完成华为云部署。
 
+## 11. 当前实现验收快照
+
+- 本地数据文件为 1502 条唯一 source_url 的 CVF 记录，source=CVF、parser_version=cvf-v1、crawled_at 无缺失；导入当前数据库后共 1517 条记录，另含 15 条 fixture。
+- 本地后端测试为 72 passed，前端测试为 29 passed，Vite 生产构建成功，Docker Compose 配置可解析。
+- 本地最新 FastAPI 实例已验证 /api/health、/api/stats/evolution、/api/stats/quality、主题检查器和论文导出；云端 CodeArts 与公网部署仍未验证。
+- AI 协作记录、博客草稿和 PSP 是个人课程提交材料，保留在本地并由 .gitignore 排除，不属于项目源码。
