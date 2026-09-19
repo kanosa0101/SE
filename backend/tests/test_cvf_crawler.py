@@ -44,6 +44,36 @@ def test_parse_index_supports_legacy_relative_content_links() -> None:
     ]
 
 
+DYNAMIC_INDEX_HTML = """
+<html><body>
+  <a href="CVPR2019.py?day=2019-06-18">Tuesday</a>
+  <a href="CVPR2019.py?day=2019-06-19">Wednesday</a>
+  <a href="CVPR2019.py?day=all">All days</a>
+  <a href="http://cvpr2019.thecvf.com">Site</a>
+</body></html>
+"""
+
+
+def test_parse_day_urls_lists_per_day_pages_without_all_view() -> None:
+    from app.crawlers.cvf import parse_day_urls
+
+    urls = parse_day_urls(DYNAMIC_INDEX_HTML, "https://openaccess.thecvf.com/CVPR2019")
+
+    assert urls == [
+        "https://openaccess.thecvf.com/CVPR2019.py?day=2019-06-18",
+        "https://openaccess.thecvf.com/CVPR2019.py?day=2019-06-19",
+    ]
+
+
+def test_parse_all_papers_url_accepts_dynamic_page_variant() -> None:
+    from app.crawlers.cvf import parse_all_papers_url
+
+    html = '<a href="CVPR2019.py?day=all">All papers</a>'
+    assert parse_all_papers_url(html, "https://openaccess.thecvf.com/CVPR2019") == (
+        "https://openaccess.thecvf.com/CVPR2019.py?day=all"
+    )
+
+
 def test_parse_detail_extracts_cvf_metadata() -> None:
     detail_url = "https://openaccess.thecvf.com/content/CVPR2024/html/A_Test_Paper_CVPR_2024_paper.html"
 

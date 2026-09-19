@@ -1,8 +1,8 @@
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import distinct, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import desc, distinct, func, select
+from sqlalchemy.orm import Session, aliased
 
 from app.db import get_db
 from app.models import Keyword, Paper, PaperKeyword
@@ -29,16 +29,26 @@ def _keyword_rows(
     conference: str | None = None,
     year_from: int | None = None,
     year_to: int | None = None,
+    detail: bool = False,
 ) -> list[dict]:
+    # 统计端点只需要 id 维度字段；详情字段（标题/作者/摘要）只有主题检查器需要。
+    columns = (
+        (Paper.title, Paper.authors, Paper.abstract, Paper.source, Paper.source_url) if detail else ()
+    )
     statement = (
-        select(PaperKeyword.paper_id, Keyword.name, Paper.title, Paper.authors, Paper.abstract, Paper.conference, Paper.year, Paper.source, Paper.source_url)
+        select(PaperKeyword.paper_id, Keyword.name, Paper.conference, Paper.year, *columns)
         .join(Keyword, Keyword.id == PaperKeyword.keyword_id)
         .join(Paper, Paper.id == PaperKeyword.paper_id)
         .where(*_paper_conditions(conference, year_from, year_to))
     )
+    if detail:
+        return [
+            {"paper_id": paper_id, "keyword": keyword, "title": title, "authors": authors, "abstract": abstract, "conference": venue, "year": year, "source": source, "source_url": source_url}
+            for paper_id, keyword, title, authors, abstract, venue, year, source, source_url in db.execute(statement).all()
+        ]
     return [
-        {"paper_id": paper_id, "keyword": keyword, "title": title, "authors": authors, "abstract": abstract, "conference": venue, "year": year, "source": source, "source_url": source_url}
-        for paper_id, keyword, title, authors, abstract, venue, year, source, source_url in db.execute(statement).all()
+        {"paper_id": paper_id, "keyword": keyword, "conference": venue, "year": year}
+        for paper_id, keyword, venue, year in db.execute(statement).all()
     ]
 
 
@@ -92,6 +102,46 @@ def topics(
     return sorted(result, key=lambda item: (-item["heat"], item["keyword"]))[:10]
 
 
+def _cooccurrence_graph_sql(db: Session, conference: str | None, year_from: int | None, year_to: int | None) -> dict:
+    """SQL 聚合版共现图谱：组合计数交给 SQLite 自连接，避免全量行拉回 Python 统计。"""
+    conditions = _paper_conditions(conference, year_from, year_to)
+    top = db.execute(
+        select(Keyword.name, func.count(distinct(PaperKeyword.paper_id)).label("papers"))
+        .join(PaperKeyword, PaperKeyword.keyword_id == Keyword.id)
+        .join(Paper, Paper.id == PaperKeyword.paper_id)
+        .where(*conditions)
+        .group_by(Keyword.name)
+        .order_by(desc("papers"), Keyword.name)
+        .limit(50)
+    ).all()
+    if not top:
+        return {"nodes": [], "links": []}
+    name_to_id = dict(db.execute(select(Keyword.name, Keyword.id)).all())
+    top_ids = [name_to_id[name] for name, _ in top]
+    pk1, pk2 = aliased(PaperKeyword), aliased(PaperKeyword)
+    k1, k2 = aliased(Keyword), aliased(Keyword)
+    pairs = db.execute(
+        select(k1.name, k2.name, func.count())
+        .select_from(pk1)
+        .join(pk2, (pk2.paper_id == pk1.paper_id) & (pk2.keyword_id > pk1.keyword_id))
+        .join(k1, k1.id == pk1.keyword_id)
+        .join(k2, k2.id == pk2.keyword_id)
+        .join(Paper, Paper.id == pk1.paper_id)
+        .where(pk1.keyword_id.in_(top_ids), pk2.keyword_id.in_(top_ids), *conditions)
+        .group_by(k1.name, k2.name)
+    ).all()
+    edge_counts: Counter[tuple[str, str]] = Counter()
+    for first, second, value in pairs:
+        edge_counts[(first, second) if first < second else (second, first)] += value
+    return {
+        "nodes": [{"name": name, "value": papers} for name, papers in top],
+        "links": [
+            {"source": source, "target": target, "value": value}
+            for (source, target), value in sorted(edge_counts.items())
+        ],
+    }
+
+
 @router.get("/graph")
 def graph(
     conference: str | None = Query(default=None, pattern="^(CVPR|ICCV|ECCV)$"),
@@ -99,7 +149,7 @@ def graph(
     year_to: int | None = Query(default=None, ge=1990, le=2100),
     db: Session = Depends(get_db),
 ) -> dict:
-    return build_cooccurrence_graph(_keyword_rows(db, conference, year_from, year_to))
+    return _cooccurrence_graph_sql(db, conference, year_from, year_to)
 
 
 @router.get("/trends")
@@ -163,7 +213,16 @@ def trends(
 def topic_inspector(keyword: str, db: Session = Depends(get_db)) -> TopicInspector:
     normalized = normalize_keyword(keyword)
     all_rows = _keyword_rows(db)
-    rows = [row for row in all_rows if row["keyword"] == normalized]
+    statement = (
+        select(PaperKeyword.paper_id, Keyword.name, Paper.title, Paper.authors, Paper.abstract, Paper.conference, Paper.year, Paper.source, Paper.source_url)
+        .join(Keyword, Keyword.id == PaperKeyword.keyword_id)
+        .join(Paper, Paper.id == PaperKeyword.paper_id)
+        .where(Keyword.name == normalized)
+    )
+    rows = [
+        {"paper_id": paper_id, "keyword": keyword, "title": title, "authors": authors, "abstract": abstract, "conference": venue, "year": year, "source": source, "source_url": source_url}
+        for paper_id, keyword, title, authors, abstract, venue, year, source, source_url in db.execute(statement).all()
+    ]
     if not rows:
         raise HTTPException(status_code=404, detail="主题不存在")
     total = db.scalar(select(func.count(Paper.id))) or 0

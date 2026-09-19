@@ -93,9 +93,31 @@ def parse_all_papers_url(html: str, event_url: str) -> str | None:
             continue
         resolved = urljoin(event_url, href)
         parsed = urlparse(resolved)
-        if parsed.path.rstrip("/") == event_path and parse_qs(parsed.query).get("day") == ["all"]:
+        # 2019-2020 的动态页把 day 链接挂在 CVPR2019.py 上，接受这一变体。
+        if parsed.path.rstrip("/") in (event_path, f"{event_path}.py") and parse_qs(parsed.query).get("day") == ["all"]:
             return resolved
     return None
+
+
+def parse_day_urls(html: str, event_url: str) -> list[str]:
+    """Return per-day listing URLs for events that publish no all-papers view."""
+
+    event_path = urlparse(event_url).path.rstrip("/")
+    soup = BeautifulSoup(html, "html.parser")
+    urls: list[str] = []
+    seen: set[str] = set()
+    for link in soup.select("a[href]"):
+        resolved = urljoin(event_url, link.get("href") or "")
+        parsed = urlparse(resolved)
+        if parsed.path.rstrip("/") not in (event_path, f"{event_path}.py"):
+            continue
+        day_values = parse_qs(parsed.query).get("day")
+        if not day_values or day_values == ["all"]:
+            continue
+        if resolved not in seen:
+            seen.add(resolved)
+            urls.append(resolved)
+    return urls
 
 
 def parse_detail(html: str, conference: str, year: int, source_url: str) -> CvfRecord:
@@ -358,6 +380,16 @@ class CvfCrawler:
                 detail_urls = list(dict.fromkeys(
                     [*detail_urls, *parse_index(all_index_html, self.base_url)]
                 ))
+        else:
+            # 2019-2020 事件没有 day=all 汇总页，逐个分日列表页收集论文链接。
+            for day_url in parse_day_urls(index_html, event_url):
+                day_html, day_skipped = self._fetch_html(day_url)
+                if day_skipped or day_html is None:
+                    self._current_discovered_pages.add(day_url)
+                    continue
+                self._current_discovered_pages.add(day_url)
+                detail_urls.extend(parse_index(day_html, self.base_url))
+            detail_urls = list(dict.fromkeys(detail_urls))
         if limit is not None:
             detail_urls = detail_urls[:limit]
         self._current_discovered_pages.update(detail_urls)
