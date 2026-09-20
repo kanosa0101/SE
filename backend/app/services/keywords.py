@@ -33,24 +33,38 @@ ALIASES = {
     "large language models": "large language model",
 }
 
-# 排名时排除的泛化载体词：它们描述"研究对象/载体"而非具体研究方向，
-# 放进 Top 10 榜单没有信息量（作业题目关注的是热门研究方向）。
-GENERIC_TERMS = {
-    "model", "models", "image", "images", "data", "dataset", "datasets",
-    "feature", "features", "learning", "object", "objects", "task", "tasks",
-}
+# 研究方向聚合：作业要求"提取 Top 10 热门领域或热门研究方向"，而非出现最多的词。
+# 因此统计排名时先把细粒度关键词按词元映射到研究领域，再按领域覆盖论文数排序；
+# 未映射到任何领域的关键词（image、model、deep 等泛化载体词）不参与排名。
+# 映射只影响排名聚合，关键词本体与共现图谱保持原样。
+RESEARCH_AREAS = [
+    ("Object Detection", {"detection", "detector", "yolo", "detr"}),
+    ("Segmentation", {"segmentation", "semantic", "instance", "panoptic", "matting", "sam"}),
+    ("Diffusion & Generative Models", {"diffusion", "generation", "generative", "denoising", "gan", "vae"}),
+    ("Vision-Language & Multimodal", {"vlm", "vision-language", "multimodal", "multi-modal", "llm", "clip", "captioning", "vqa", "text-to-image", "language"}),
+    ("3D Perception", {"3d", "point", "depth", "nerf", "reconstruction", "mesh", "slam", "rgb-d", "gaussian"}),
+    ("Video Understanding", {"video", "temporal", "action", "tracking", "motion", "frame"}),
+    ("Transformers & Attention", {"transformer", "transformers", "attention", "vit", "mamba"}),
+    ("Self-Supervised & Representation Learning", {"self-supervised", "contrastive", "representation", "pre-training", "pretraining", "unsupervised", "masked", "embedding"}),
+    ("Pose & Keypoint Estimation", {"pose", "keypoint", "skeleton"}),
+    ("Adversarial Robustness & Security", {"adversarial", "attack", "robustness", "backdoor"}),
+    ("Face & Human Understanding", {"face", "human", "person", "body", "gesture", "gaze"}),
+    ("Domain Adaptation & Generalization", {"domain", "adaptation", "generalization", "cross-domain"}),
+    ("Autonomous Driving", {"driving", "autonomous", "vehicle", "navigation", "lidar"}),
+    ("Medical Imaging", {"medical", "ct", "mri", "x-ray", "lesion", "clinical", "pathology"}),
+    ("CNN & Convolutional Networks", {"cnn", "convolutional"}),
+]
 
-# 论文标题中常见且本身指向具体技术路线的三字母缩写，允许进入排名。
-ACRONYM_ALLOWLIST = {"gan", "vit", "cnn", "rnn", "mae", "vae", "gnn", "ocr", "bev", "slm"}
 
-
-def is_informative_keyword(name: str) -> bool:
-    if name in GENERIC_TERMS:
-        return False
-    if len(name) <= 3 and name.isalpha() and name not in ACRONYM_ALLOWLIST:
-        # 3 字母及以下的纯字母词多为论文自起名的数据集/方法缩写碎片（abo、aat 等）
-        return False
-    return True
+def research_area_for(name: str) -> str | None:
+    """把归一化关键词映射到研究领域；未映射的泛化词返回 None。"""
+    tokens = set(name.replace("-", " ").split())
+    if not tokens:
+        return None
+    for area, signals in RESEARCH_AREAS:
+        if tokens & signals:
+            return area
+    return None
 
 
 def _singularize(token: str) -> str:

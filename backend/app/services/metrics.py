@@ -93,21 +93,23 @@ def build_topic_inspector(
 
 
 def build_yearly_evolution(rows: list[dict], limit: int = 10) -> dict:
-    from app.services.keywords import is_informative_keyword
+    from app.services.keywords import research_area_for
 
     years = sorted({row["year"] for row in rows})
     frames = []
     for year in years:
         year_rows = [row for row in rows if row["year"] == year]
         total_papers = len({row["paper_id"] for row in year_rows})
-        grouped: dict[str, list[dict]] = defaultdict(list)
+        # 与 Top 10 / 趋势同口径：按研究领域聚合，未映射的泛化词不参与。
+        grouped: dict[str, set[int]] = defaultdict(set)
         for row in year_rows:
-            if not is_informative_keyword(row["keyword"]):
+            area = research_area_for(row["keyword"])
+            if area is None:
                 continue
-            grouped[row["keyword"]].append(row)
+            grouped[area].add(row["paper_id"])
         topics = [
-            {"keyword": keyword, "papers": len({row["paper_id"] for row in keyword_rows}), "heat": calculate_heat(keyword_rows, total_papers)}
-            for keyword, keyword_rows in grouped.items()
+            {"keyword": area, "papers": len(paper_ids), "heat": calculate_heat([{"paper_id": pid} for pid in paper_ids], total_papers)}
+            for area, paper_ids in grouped.items()
         ]
         topics.sort(key=lambda item: (-item["heat"], item["keyword"]))
         frames.append({"year": year, "topics": topics[:limit]})

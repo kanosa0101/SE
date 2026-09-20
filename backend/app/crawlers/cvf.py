@@ -380,16 +380,15 @@ class CvfCrawler:
                 detail_urls = list(dict.fromkeys(
                     [*detail_urls, *parse_index(all_index_html, self.base_url)]
                 ))
-        else:
-            # 2019-2020 事件没有 day=all 汇总页，逐个分日列表页收集论文链接。
-            for day_url in parse_day_urls(index_html, event_url):
-                day_html, day_skipped = self._fetch_html(day_url)
-                if day_skipped or day_html is None:
-                    self._current_discovered_pages.add(day_url)
-                    continue
+        # 无论是否有 day=all 汇总页都合并分日列表页，保证不漏掉汇总页缺失的论文。
+        for day_url in parse_day_urls(index_html, event_url):
+            day_html, day_skipped = self._fetch_html(day_url)
+            if day_skipped or day_html is None:
                 self._current_discovered_pages.add(day_url)
-                detail_urls.extend(parse_index(day_html, self.base_url))
-            detail_urls = list(dict.fromkeys(detail_urls))
+                continue
+            self._current_discovered_pages.add(day_url)
+            detail_urls.extend(parse_index(day_html, self.base_url))
+        detail_urls = list(dict.fromkeys(detail_urls))
         if limit is not None:
             detail_urls = detail_urls[:limit]
         self._current_discovered_pages.update(detail_urls)

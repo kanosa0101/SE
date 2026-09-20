@@ -46,7 +46,7 @@ def test_topics_graph_and_trends_return_structured_statistics(client):
     assert trends.json()["series"]
 
 
-def test_topics_excludes_generic_carrier_words(client):
+def test_topics_ranks_research_areas_not_raw_words(client):
     client.post(
         "/api/papers",
         json={
@@ -62,12 +62,14 @@ def test_topics_excludes_generic_carrier_words(client):
     response = client.get("/api/stats/topics")
 
     assert response.status_code == 200
-    keywords = [topic["keyword"] for topic in response.json()]
-    assert "model" not in keywords
-    assert "segmentation" in keywords
+    areas = [topic["keyword"] for topic in response.json()]
+    # 泛化载体词不进入榜单，关键词聚合为研究领域
+    assert "model" not in areas
+    assert "Segmentation" in areas
+    assert all(area not in ("image", "data", "learning") for area in areas)
 
 
-def test_trends_returns_top_keywords_by_coverage_not_alphabetical(client):
+def test_trends_returns_top_research_areas_by_coverage(client):
     seed_papers(client)
     for index in range(3):
         client.post(
@@ -96,5 +98,5 @@ def test_trends_returns_top_keywords_by_coverage_not_alphabetical(client):
     response = client.get("/api/stats/trends", params={"conference": "CVPR", "limit": 1})
 
     assert response.status_code == 200
-    keywords = [series["keyword"] for series in response.json()["series"]]
-    assert keywords == ["segmentation"]
+    areas = [series["keyword"] for series in response.json()["series"]]
+    assert areas == ["Segmentation"]

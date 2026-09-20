@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session, aliased
 from app.db import get_db
 from app.models import Keyword, Paper, PaperKeyword
 from app.schemas import QualityAudit, TopicInspector, YearlyEvolution
-from app.services.keywords import is_informative_keyword, normalize_keyword
-from app.services.metrics import build_topic_inspector, build_yearly_evolution, calculate_heat
+from app.services.keywords import research_area_for, normalize_keyword
+from app.services.metrics import build_topic_inspector, calculate_heat
 
 router = APIRouter(prefix="/api/stats", tags=["statistics"])
 
@@ -76,6 +76,36 @@ def overview(
     }
 
 
+def _area_rows(db: Session, conference: str | None = None, year_from: int | None = None, year_to: int | None = None):
+    """按元组流返回 (关键词名, 会议, 年份, paper_id)，供领域聚合复用。
+
+    25k+ 记录下构建 25 万个 dict 的开销显著，这里保持原始元组，
+    领域映射结果按关键词名缓存，避免逐行重复计算。
+    """
+    statement = (
+        select(Keyword.name, Paper.conference, Paper.year, PaperKeyword.paper_id)
+        .select_from(PaperKeyword)
+        .join(Keyword, Keyword.id == PaperKeyword.keyword_id)
+        .join(Paper, Paper.id == PaperKeyword.paper_id)
+        .where(*_paper_conditions(conference, year_from, year_to))
+    )
+    area_cache: dict[str, str | None] = {}
+
+    def area_of(name: str) -> str | None:
+        if name not in area_cache:
+            area_cache[name] = research_area_for(name)
+        return area_cache[name]
+
+    return db.execute(statement).all(), area_of
+
+
+def _area_totals(db: Session, conference: str | None = None, year_from: int | None = None, year_to: int | None = None) -> dict[tuple[str, int], int]:
+    """每个 (会议, 年份) 的论文总数，供各口径计算覆盖率。"""
+    conditions = _paper_conditions(conference, year_from, year_to)
+    statement = select(Paper.conference, Paper.year, func.count(Paper.id)).where(*conditions).group_by(Paper.conference, Paper.year)
+    return {(venue, year): count for venue, year, count in db.execute(statement).all()}
+
+
 @router.get("/topics")
 def topics(
     conference: str | None = Query(default=None, pattern="^(CVPR|ICCV|ECCV)$"),
@@ -83,22 +113,23 @@ def topics(
     year_to: int | None = Query(default=None, ge=1990, le=2100),
     db: Session = Depends(get_db),
 ) -> list[dict]:
-    rows = _keyword_rows(db, conference, year_from, year_to)
+    rows, area_of = _area_rows(db, conference, year_from, year_to)
     total = db.scalar(select(func.count(Paper.id)).where(*_paper_conditions(conference, year_from, year_to))) or 0
-    by_keyword: dict[str, list[dict]] = defaultdict(list)
-    for row in rows:
-        if not is_informative_keyword(row["keyword"]):
-            continue
-        by_keyword[row["keyword"]].append(row)
-    result = []
-    for keyword, keyword_rows in by_keyword.items():
-        result.append(
-            {
-                "keyword": keyword,
-                "papers": len({row["paper_id"] for row in keyword_rows}),
-                "heat": calculate_heat(keyword_rows, total),
-            }
-        )
+    # 作业口径是"热门领域/研究方向"而非出现最多的词：先把关键词映射到研究领域，
+    # 再按领域的覆盖论文数（并集去重）排序；未映射的泛化载体词不参与排名。
+    area_papers: dict[str, set[int]] = defaultdict(set)
+    for name, _venue, _year, paper_id in rows:
+        area = area_of(name)
+        if area is not None:
+            area_papers[area].add(paper_id)
+    result = [
+        {
+            "keyword": area,
+            "papers": len(papers),
+            "heat": round(len(papers) / total * 1000, 1) if total else 0.0,
+        }
+        for area, papers in area_papers.items()
+    ]
     return sorted(result, key=lambda item: (-item["heat"], item["keyword"]))[:10]
 
 
@@ -160,48 +191,42 @@ def trends(
     limit: int = Query(default=10, ge=1, le=50),
     db: Session = Depends(get_db),
 ) -> dict:
-    rows = _keyword_rows(db, conference, year_from, year_to)
-    totals: dict[tuple[str, int], int] = {}
-    for row in rows:
-        key = (row["conference"], row["year"])
-        if key not in totals:
-            totals[key] = db.scalar(
-                select(func.count(Paper.id)).where(Paper.conference == key[0], Paper.year == key[1])
-            ) or 0
-    # 只保留覆盖论文数最高且具备方向信息量的关键词，避免泛化载体词淹没图表。
-    keyword_papers: dict[str, set[int]] = defaultdict(set)
-    for row in rows:
-        if not is_informative_keyword(row["keyword"]):
+    rows, area_of = _area_rows(db, conference, year_from, year_to)
+    totals = _area_totals(db, conference, year_from, year_to)
+    # 趋势与 Top 10 同口径：按研究领域聚合（覆盖论文数并集去重），未映射词不参与。
+    area_papers: dict[str, set[int]] = defaultdict(set)
+    grouped: dict[tuple[str, str, int], set[int]] = defaultdict(set)
+    for name, venue, year, paper_id in rows:
+        area = area_of(name)
+        if area is None:
             continue
-        keyword_papers[row["keyword"]].add(row["paper_id"])
-    top_keywords = {
-        keyword
-        for keyword, _ in sorted(keyword_papers.items(), key=lambda item: (-len(item[1]), item[0]))[:limit]
+        area_papers[area].add(paper_id)
+        grouped[(area, venue, year)].add(paper_id)
+    top_areas = {
+        area
+        for area, _ in sorted(area_papers.items(), key=lambda item: (-len(item[1]), item[0]))[:limit]
     }
-    grouped: dict[tuple[str, str, int], list[dict]] = defaultdict(list)
-    for row in rows:
-        if row["keyword"] not in top_keywords:
-            continue
-        grouped[(row["keyword"], row["conference"], row["year"])].append(row)
     series_map: dict[str, list[dict]] = defaultdict(list)
-    for (keyword, venue, year), keyword_rows in grouped.items():
-        series_map[keyword].append(
+    for (area, venue, year), paper_ids in grouped.items():
+        if area not in top_areas:
+            continue
+        series_map[area].append(
             {
                 "conference": venue,
                 "year": year,
-                "heat": calculate_heat(keyword_rows, totals[(venue, year)]),
+                "heat": calculate_heat([{"paper_id": pid} for pid in paper_ids], totals.get((venue, year), 0)),
             }
         )
-    years = sorted({row["year"] for row in rows})
+    years = sorted({year for (_venue, year), _count in totals.items()}) if totals else []
     ranked = sorted(
         series_map.items(),
-        key=lambda item: (-len(keyword_papers[item[0]]), item[0]),
+        key=lambda item: (-len(area_papers[item[0]]), item[0]),
     )
     return {
         "years": years,
         "series": [
-            {"keyword": keyword, "data": sorted(data, key=lambda item: (item["year"], item["conference"]))}
-            for keyword, data in ranked
+            {"keyword": area, "data": sorted(data, key=lambda item: (item["year"], item["conference"]))}
+            for area, data in ranked
         ],
     }
 
@@ -231,7 +256,38 @@ def topic_inspector(keyword: str, db: Session = Depends(get_db)) -> TopicInspect
 
 @router.get("/evolution", response_model=YearlyEvolution)
 def evolution(limit: int = Query(default=10, ge=1, le=100), db: Session = Depends(get_db)) -> YearlyEvolution:
-    return build_yearly_evolution(_keyword_rows(db), limit)
+    rows, area_of = _area_rows(db)
+    totals = _area_totals(db)
+    # 与 Top 10 / 趋势同口径：按研究领域聚合，未映射的泛化词不参与。
+    area_papers: dict[str, set[int]] = defaultdict(set)
+    grouped: dict[tuple[str, int], set[int]] = defaultdict(set)
+    for name, _venue, year, paper_id in rows:
+        area = area_of(name)
+        if area is None:
+            continue
+        area_papers[area].add(paper_id)
+        grouped[(area, year)].add(paper_id)
+    top_areas = {
+        area
+        for area, _ in sorted(area_papers.items(), key=lambda item: (-len(item[1]), item[0]))[:limit]
+    }
+    years = sorted({year for (_venue, year), _count in totals.items()}) if totals else []
+    papers_per_year = defaultdict(int)
+    for (_venue, year), count in totals.items():
+        papers_per_year[year] += count
+    grouped_by_year: dict[int, list[tuple[str, set[int]]]] = defaultdict(list)
+    for (area, year), paper_ids in grouped.items():
+        if area in top_areas:
+            grouped_by_year[year].append((area, paper_ids))
+    frames = []
+    for year in years:
+        frame_topics = [
+            {"keyword": area, "papers": len(paper_ids), "heat": calculate_heat([{"paper_id": pid} for pid in paper_ids], papers_per_year.get(year, 0))}
+            for area, paper_ids in grouped_by_year.get(year, [])
+        ]
+        frame_topics.sort(key=lambda item: (-item["heat"], item["keyword"]))
+        frames.append({"year": year, "topics": frame_topics[:limit]})
+    return {"years": years, "frames": frames}
 
 
 @router.get("/quality", response_model=QualityAudit)

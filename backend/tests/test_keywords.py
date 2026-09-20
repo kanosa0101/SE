@@ -1,4 +1,4 @@
-from app.services.keywords import extract_keywords, is_informative_keyword, normalize_keyword
+from app.services.keywords import extract_keywords, normalize_keyword, research_area_for
 
 
 def test_normalize_keyword_merges_case_and_aliases():
@@ -37,12 +37,13 @@ def test_extract_keywords_filters_academic_boilerplate_terms():
     assert "object" in result
 
 
-def test_is_informative_keyword_filters_generic_and_fragment_terms():
-    for generic in ("model", "image", "data", "learning", "dataset", "feature", "object", "task"):
-        assert not is_informative_keyword(generic)
-    # 论文自起名缩写碎片不进入排名
-    for fragment in ("abo", "aat", "xyz"):
-        assert not is_informative_keyword(fragment)
-    # 常见技术路线缩写与研究方向词保留
-    for informative in ("gan", "vit", "nerf", "detection", "segmentation", "diffusion", "3d"):
-        assert is_informative_keyword(informative)
+def test_research_area_for_maps_direction_words_and_skips_generic_terms():
+    assert research_area_for("detection") == "Object Detection"
+    assert research_area_for("object detection") == "Object Detection"
+    assert research_area_for("diffusion model") == "Diffusion & Generative Models"
+    assert research_area_for("llm") == "Vision-Language & Multimodal"
+    assert research_area_for("vision transformer") == "Transformers & Attention"
+    assert research_area_for("point cloud") == "3D Perception"
+    # 泛化载体词不映射到任何领域，自然退出热门方向排名
+    for generic in ("model", "image", "data", "learning", "deep", "training", "network", "abo"):
+        assert research_area_for(generic) is None

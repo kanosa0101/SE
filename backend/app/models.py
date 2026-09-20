@@ -45,7 +45,10 @@ class Keyword(Base):
 
 class PaperKeyword(Base):
     __tablename__ = "paper_keywords"
-    __table_args__ = (UniqueConstraint("paper_id", "keyword_id", name="uq_paper_keyword"),)
+    __table_args__ = (
+        UniqueConstraint("paper_id", "keyword_id", name="uq_paper_keyword"),
+        Index("ix_paper_keywords_keyword_id", "keyword_id"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     paper_id: Mapped[int] = mapped_column(ForeignKey("papers.id", ondelete="CASCADE"), nullable=False)

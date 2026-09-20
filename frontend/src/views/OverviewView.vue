@@ -30,8 +30,8 @@
 
       <section class="dashboard-grid">
         <article class="panel topics-panel">
-          <div class="panel-heading"><div><div class="eyebrow">RANK / TOPIC COVERAGE</div><h2>Top 10 热门关键词</h2></div><span class="mono dim">最多 10 项</span></div>
-          <p class="topic-note">按覆盖论文数降序排列，已排除 model、image 等泛化载体词，只保留具体研究方向。覆盖率（‰）= 覆盖论文数 / 当前范围论文总数 × 1000；同一篇论文可携带多个关键词，因此各词覆盖率之和可超过 1000‰。</p>
+          <div class="panel-heading"><div><div class="eyebrow">RANK / TOPIC COVERAGE</div><h2>Top 10 热门研究方向</h2></div><span class="mono dim">最多 10 项</span></div>
+          <p class="topic-note">关键词按词元映射到研究领域后，以领域覆盖论文数（并集去重）降序排列；image、model 等泛化载体词不参与排名。覆盖率（‰）= 覆盖论文数 / 当前范围论文总数 × 1000；同一篇论文可属于多个领域，因此各领域覆盖率之和可超过 1000‰。</p>
           <div class="panel-body topic-list">
             <button v-for="(topic, index) in topics" :key="topic.keyword" class="topic-row" type="button" :aria-label="`了解更多：${topic.keyword}`" @click="selectTopic(topic.keyword)">
               <span class="rank">{{ String(index + 1).padStart(2, '0') }}</span>
