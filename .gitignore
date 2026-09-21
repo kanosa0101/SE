@@ -18,10 +18,8 @@ coverage/
 *.gif
 *.mp4
 
-# Personal course-submission materials; kept locally, not project source
-docs/ai-collaboration.md
-docs/blog-draft.md
-docs/psp.md
+# Local documentation and course-submission materials; kept locally, not project source
+docs/
 
 # Crawler HTML cache is regenerable and far too large for the repo
 data/raw/
