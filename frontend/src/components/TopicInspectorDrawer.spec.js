@@ -47,6 +47,15 @@ describe("TopicInspectorDrawer", () => {
     expect(wrapper.emitted("close")).toHaveLength(1)
   })
 
+  it("requests an aggregated research area when the scope is area", async () => {
+    inspector.mockResolvedValue({ data: payload })
+    mount(TopicInspectorDrawer, { props: { keyword: "Diffusion & Generative Models", scope: "area", open: true } })
+
+    await flushPromises()
+
+    expect(inspector).toHaveBeenCalledWith("Diffusion & Generative Models", "area")
+  })
+
 
   it("traps Tab navigation inside the drawer", async () => {
     inspector.mockResolvedValue({ data: payload })
@@ -102,4 +111,3 @@ describe("TopicInspectorDrawer", () => {
   })
 
 })
-

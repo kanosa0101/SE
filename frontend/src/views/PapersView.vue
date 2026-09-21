@@ -131,6 +131,7 @@ function readRouteFilters() {
     year_from: route.query.year_from ? Number(route.query.year_from) : "",
     year_to: route.query.year_to ? Number(route.query.year_to) : "",
     keyword: typeof route.query.keyword === "string" ? route.query.keyword : "",
+    keyword_scope: route.query.keyword_scope === "area" ? "area" : "",
   }
 }
 const filters = reactive(readRouteFilters())
@@ -160,6 +161,7 @@ function queryParams() {
   for (const key of ["q", "conference", "year", "year_from", "year_to", "keyword"]) {
     if (filters[key] !== "" && filters[key] !== null && filters[key] !== undefined) params[key] = filters[key]
   }
+  if (filters.keyword && filters.keyword_scope) params.keyword_scope = filters.keyword_scope
   return params
 }
 
@@ -192,7 +194,7 @@ async function search() {
   await load()
 }
 async function reset() {
-  Object.assign(filters, { q: "", conference: "", year: "", year_from: "", year_to: "", keyword: "" })
+  Object.assign(filters, { q: "", conference: "", year: "", year_from: "", year_to: "", keyword: "", keyword_scope: "" })
   page.value = 1
   searched.value = false
   lookupPaper.value = null
@@ -209,6 +211,7 @@ function exportParams() {
   for (const key of ["q", "conference", "year", "year_from", "year_to", "keyword"]) {
     if (filters[key] !== "" && filters[key] !== null && filters[key] !== undefined) params[key] = filters[key]
   }
+  if (filters.keyword && filters.keyword_scope) params.keyword_scope = filters.keyword_scope
   return params
 }
 async function readBlobText(blob) {
@@ -326,7 +329,7 @@ function clearLookup() {
   lookupPaper.value = null
   lookupError.value = ""
 }
-watch(() => [route.query.q, route.query.conference, route.query.year, route.query.year_from, route.query.year_to, route.query.keyword], () => {
+watch(() => [route.query.q, route.query.conference, route.query.year, route.query.year_from, route.query.year_to, route.query.keyword, route.query.keyword_scope], () => {
   Object.assign(filters, readRouteFilters())
   page.value = 1
   searched.value = Boolean(filters.q || filters.conference || filters.year || filters.year_from || filters.year_to || filters.keyword)

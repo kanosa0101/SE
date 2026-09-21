@@ -6,7 +6,7 @@
 | 作业链接 | [软件工程实践第二次作业——与AI结对编程（顶会热词统计）](https://bbs.csdn.net/topics/620526318) |
 | 代码规范 | [codestyle.md](./codestyle.md) |
 
-CVInsight 是软件工程实践第二次作业的可运行实现。系统面向 CVPR、ICCV、ECCV 论文元数据，提供论文采集、论文库维护、Top 10 热词统计、关键词关系图谱和多年份趋势观察。
+CVInsight 是软件工程实践第二次作业的可运行实现。系统面向 CVPR、ICCV、ECCV 论文元数据，提供论文采集、论文库维护、Top 10 热门研究方向统计、关键词关系图谱和多年份趋势观察。
 
 本仓库采用 Vue 3 + FastAPI + SQLite。Stitch 只用于前期原型和视觉方向探索；仓库中的页面、组件和接口代码按照本项目的数据模型重新实现，没有把 Stitch 生成的独立 HTML 作为应用代码直接接入。项目源码、测试和本 README 是可复核的工程内容；AI 协作记录、博客草稿和 PSP 属于提交者的个人课程材料，保留在本地但不纳入本项目 Git。
 
@@ -15,12 +15,12 @@ CVInsight 是软件工程实践第二次作业的可运行实现。系统面向 
 - 单篇标题检索：展示摘要、作者、会议、年份、关键词和原文链接，确认后写入 SQLite。
 - CSV 批量导入：逐行校验、重复跳过、错误回传，并保留导入结果。
 - 论文库：标题、作者、论文编号和关键词的模糊查询；会议、年份、关键词筛选；详情、编辑和删除。
-- 统计总览：论文数、会议数、年份范围、Top 10 关键词、关键词共现图。
+- 统计总览：论文数、会议数、年份范围、Top 10 热门研究方向、关键词共现图。
 - 趋势观察：按 CVPR、ICCV、ECCV 和年份返回论文数量，可在前端播放多年份折线动画。
 - 数据接入：SQLAlchemy ORM + SQLite；关键词使用独立表和多对多关系保存。
 - 生产入口：Vite 构建后由 FastAPI 提供前端静态资源，也可使用 Docker Compose 部署。
 - 可重复演示数据：data/demo_papers.csv 包含 15 条跨年份演示记录，明确标记为 fixture。
-- CVF 抓取样本：data/cvf_crawled_1500.csv（1502 条，CVPR 2022-2025、ICCV 2023/2025）与 data/cvf_pre2022.csv（10908 条，CVPR 2016-2021、ICCV 2017/2019/2021、ECCV 2018，另附 cvf_pre2022.manifest.json 抓取清单）均为真实抓取，抓取脚本为 backend/scripts/crawl_cvf.py。
+- CVF 抓取数据：data/cvf_2022_2025_full.csv（14865 条，CVPR 2022-2025、ICCV 2023/2025）、data/cvf_pre2022.csv（10908 条，CVPR 2016-2021、ICCV 2017/2019/2021、ECCV 2018）和 data/cvf_crawled_1500.csv（1502 条可复核子集）均为真实抓取，抓取脚本为 backend/scripts/crawl_cvf.py。
 - 扩展功能：关键词“了解更多”主题检查器、年度热词演变播放、数据质量审计以及 CSV/BibTeX 导出。
 
 ## 目录结构
@@ -45,6 +45,7 @@ CVInsight 是软件工程实践第二次作业的可运行实现。系统面向 
 │  └─ src/utils/           # 可测试的格式化与筛选函数
 ├─ data/demo_papers.csv
 ├─ data/cvf_crawled_1500.csv
+├─ data/cvf_2022_2025_full.csv
 ├─ data/cvf_pre2022.csv
 ├─ data/cvf_pre2022.manifest.json
 ├─ docs/
@@ -118,10 +119,10 @@ npm run build
 
 当前本地验证记录：
 
-- 后端：85 passed；包含 API、数据库迁移、统计扩展、CVF 抓取器（含老年份链接解析与分日页发现）、在线检索会议映射和趋势排序测试。
-- 前端：29 passed；覆盖真实 API 状态、主题检查器、年度演变、质量审计和导出交互。
+- 后端：当前工作区 75 passed；工作区保留了提交者对 `backend/tests/test_extensions_api.py` 的删除，因此与此前完整基线 85 passed 不同。
+- 前端：36 passed；覆盖真实 API 状态、主题检查器、年度演变、质量审计、导出交互和研究方向筛选联动。
 - Vite：生产构建成功；ECharts 按需引入并单独分包（echarts chunk 约 525 kB），构建无体积警告。
-- CVF 数据：data/cvf_crawled_1500.csv（1502 条）、data/cvf_pre2022.csv（10908 条）、data/cvf_2022_2025_full.csv（14865 条，补齐 2022-2025 全量）；导入后数据库共 25,777 条（含 15 条 fixture）。
+- CVF 数据：data/cvf_crawled_1500.csv（1502 条）、data/cvf_pre2022.csv（10908 条）、data/cvf_2022_2025_full.csv（14865 条，补齐 2022-2025 全量）；两份全量文件合计 25773 行，按论文业务键去重后导入 25762 条 CVF 记录，数据库共 25,777 条（另含 15 条 fixture）。
 - 抓取边界：ECCV 2020/2022/2024 地址返回 404（manifest 保留失败状态），没有用合成数据替代。
 - 在线检索：backend/.env 已配置 OpenAlex 公共接口（https://api.openalex.org/works），/api/papers/lookup 已实测返回 CVPR 论文并正确映射会议缩写。
 - Docker Compose：docker compose config --quiet 解析成功。
@@ -143,21 +144,21 @@ npm run build
 | GET | /api/papers/lookup | 按标题调用配置好的在线来源 |
 | POST | /api/papers/import | 上传 CSV 并批量入库 |
 | GET | /api/stats/overview | 总量与年份范围 |
-| GET | /api/stats/topics | Top 10 热词及热度 |
+| GET | /api/stats/topics | Top 10 热门研究方向及热度 |
 | GET | /api/stats/graph | 关键词节点和共现边（node: `{name, value=覆盖论文数}`；link: `{source, target, value=共现论文数}`，取覆盖数前 50 的关键词） |
 | GET | /api/stats/trends | 多年份会议趋势 |
-| GET | /api/stats/topics/{keyword}/inspector | 主题详情、相关词和代表论文 |
+| GET | /api/stats/topics/{keyword}/inspector | 主题详情；`scope=area` 时聚合研究方向下的关键词 |
 | GET | /api/stats/evolution | 按年度返回热词演变帧 |
 | GET | /api/stats/quality | 数据覆盖率、来源和质量审计 |
 | GET | /api/papers/export | 按当前筛选条件导出 CSV/BibTeX |
 
-论文列表接口参数包括 q、conference、year、keyword、page 和 page_size。统计接口支持 conference、year_from、year_to。具体字段以 backend/app/schemas.py 为准。
+论文列表接口参数包括 q、conference、year、year_from、year_to、keyword、`keyword_scope`、page 和 page_size；当 `keyword_scope=area` 时，`keyword` 按研究方向聚合筛选。导出接口沿用同一组筛选参数。统计接口支持 conference、year_from、year_to。具体字段以 backend/app/schemas.py 为准。
 
 ## 真实数据抓取与导入
 
 backend/scripts/crawl_cvf.py 使用 BeautifulSoup 解析 CVF 会议页，保存 HTML 缓存、manifest 和 CSV，并支持限速、重试、断点续跑与按 source_url 去重；同时兼容 CVF 新旧页面结构（2021 起的 day=all 汇总页与 2016-2020 的分日动态页）。本次样本覆盖 CVPR 2016-2025、ICCV 2017/2019/2021/2023/2025 和 ECCV 2018；ECCV 2020/2022/2024 请求返回 404，manifest 保留失败状态，未补造论文。
 
-仓库中的 data/cvf_crawled_1500.csv（1502 条）与 data/cvf_pre2022.csv（10908 条）是抓取并校验后的真实记录，合计 12410 条唯一 source_url。它们是可复核的真实抓取样本，不等同于所有顶会论文全集；使用前应确认来源页面的许可和课程提交要求。导入时可使用论文导入接口或页面的 CSV 批量导入；data/demo_papers.csv 仍用于无网络的最小演示。
+仓库中的 data/cvf_2022_2025_full.csv、data/cvf_pre2022.csv 是抓取并校验后的真实记录；另保留 data/cvf_crawled_1500.csv 作为较小的可复核子集。当前数据库按业务键去重后包含 25762 条 CVF 记录，不等同于所有顶会论文全集；使用前应确认来源页面的许可和课程提交要求。导入时可使用论文导入接口或页面的 CSV 批量导入；data/demo_papers.csv 仍用于无网络的最小演示。
 
 ## 统计口径
 

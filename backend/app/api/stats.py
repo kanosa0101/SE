@@ -1,4 +1,5 @@
 from collections import Counter, defaultdict
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, distinct, func, select
@@ -7,7 +8,7 @@ from sqlalchemy.orm import Session, aliased
 from app.db import get_db
 from app.models import Keyword, Paper, PaperKeyword
 from app.schemas import QualityAudit, TopicInspector, YearlyEvolution
-from app.services.keywords import research_area_for, normalize_keyword
+from app.services.keywords import canonical_research_area, normalize_keyword, research_area_for
 from app.services.metrics import build_topic_inspector, calculate_heat
 
 router = APIRouter(prefix="/api/stats", tags=["statistics"])
@@ -235,14 +236,28 @@ def trends(
 
 
 @router.get("/topics/{keyword}/inspector", response_model=TopicInspector)
-def topic_inspector(keyword: str, db: Session = Depends(get_db)) -> TopicInspector:
+def topic_inspector(
+    keyword: str,
+    scope: Literal["keyword", "area"] = Query(default="keyword"),
+    db: Session = Depends(get_db),
+) -> TopicInspector:
     normalized = normalize_keyword(keyword)
     all_rows = _keyword_rows(db)
+    display_name = normalized
+    keyword_names = [normalized]
+    if scope == "area":
+        display_name = canonical_research_area(normalized) or ""
+        if display_name:
+            keyword_names = [
+                name
+                for (name,) in db.execute(select(Keyword.name)).all()
+                if research_area_for(name) == display_name
+            ]
     statement = (
         select(PaperKeyword.paper_id, Keyword.name, Paper.title, Paper.authors, Paper.abstract, Paper.conference, Paper.year, Paper.source, Paper.source_url)
         .join(Keyword, Keyword.id == PaperKeyword.keyword_id)
         .join(Paper, Paper.id == PaperKeyword.paper_id)
-        .where(Keyword.name == normalized)
+        .where(Keyword.name.in_(keyword_names))
     )
     rows = [
         {"paper_id": paper_id, "keyword": keyword, "title": title, "authors": authors, "abstract": abstract, "conference": venue, "year": year, "source": source, "source_url": source_url}
@@ -251,7 +266,7 @@ def topic_inspector(keyword: str, db: Session = Depends(get_db)) -> TopicInspect
     if not rows:
         raise HTTPException(status_code=404, detail="主题不存在")
     total = db.scalar(select(func.count(Paper.id))) or 0
-    return build_topic_inspector(rows, normalized, total, all_rows)
+    return build_topic_inspector(rows, display_name, total, all_rows)
 
 
 @router.get("/evolution", response_model=YearlyEvolution)

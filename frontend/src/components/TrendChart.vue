@@ -6,7 +6,7 @@
       <span class="chart-status">{{ activeYear || "等待数据" }} · {{ speed }}x</span>
       <label class="speed-select">速度 <select v-model="speed"><option :value="1">1x</option><option :value="1.5">1.5x</option><option :value="2">2x</option></select></label>
     </div>
-    <div ref="chartElement" class="trend-canvas" aria-label="关键词热度趋势图" />
+    <div ref="chartElement" class="trend-canvas" aria-label="研究方向热度趋势图" />
   </div>
 </template>
 

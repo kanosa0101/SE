@@ -64,7 +64,7 @@
             <a v-if="paper.source_url" :href="paper.source_url" target="_blank" rel="noreferrer">查看来源 ↗</a>
           </article>
           <p v-if="!details.representative_papers.length" class="muted">暂无代表论文。</p>
-          <button class="button primary full-button" type="button" @click="$emit('view-papers', keyword)">查看该主题全部论文</button>
+          <button class="button primary full-button" type="button" @click="$emit('view-papers', keyword, scope)">查看该主题全部论文</button>
         </section>
       </div>
     </section>
@@ -79,6 +79,7 @@ import { formatHeat } from "../utils/filters"
 
 const props = defineProps({
   keyword: { type: String, default: "" },
+  scope: { type: String, default: "keyword" },
   open: { type: Boolean, default: false },
 })
 const emit = defineEmits(["close", "select-related", "view-papers"])
@@ -103,7 +104,9 @@ async function load() {
   loading.value = true
   error.value = ""
   try {
-    const response = await statsApi.inspector(props.keyword)
+    const response = props.scope === "area"
+      ? await statsApi.inspector(props.keyword, "area")
+      : await statsApi.inspector(props.keyword)
     if (requestId !== loadRequestId.value) return
     details.value = response.data
   } catch (cause) {
@@ -172,7 +175,7 @@ function runLoad() {
   })
 }
 
-watch(() => [props.open, props.keyword], async ([open, keyword], previous) => {
+watch(() => [props.open, props.keyword, props.scope], async ([open, keyword], previous) => {
   const wasOpen = Boolean(previous?.[0])
   if (!open || !keyword) {
     details.value = null
@@ -236,4 +239,3 @@ onMounted(() => {
 .muted { color: var(--text-dim); font-size: 12px; }
 @media (max-width: 600px) { .inspector-head { padding: 18px; } .drawer-content { padding: 16px 18px 24px; } }
 </style>
-

@@ -24,6 +24,26 @@ def test_paper_create_and_exact_title_search(client):
     assert response.json()["total"] == 1
 
 
+def test_paper_list_can_filter_all_papers_in_a_research_area(client):
+    for index, keywords in enumerate((["diffusion"], ["generative"]), start=1):
+        response = client.post(
+            "/api/papers",
+            json=paper_payload(f"Area Paper {index}") | {"keywords": keywords},
+        )
+        assert response.status_code == 201
+
+    response = client.get(
+        "/api/papers",
+        params={
+            "keyword": "Diffusion & Generative Models",
+            "keyword_scope": "area",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 2
+
+
 def test_paper_update_and_delete(client):
     created = client.post("/api/papers", json=paper_payload())
     paper_id = created.json()["id"]

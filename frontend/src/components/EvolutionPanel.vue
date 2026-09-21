@@ -4,7 +4,7 @@
       <div>
         <div class="eyebrow">EVOLUTION / ANNUAL HOTWORDS</div>
         <h2 id="evolution-title">年度热词演变</h2>
-        <p class="panel-caption">全量样本年度帧 · 每帧展示最多 10 个热点词</p>
+        <p class="panel-caption">全量样本年度帧 · 每帧展示最多 10 个热点方向</p>
       </div>
       <div class="evolution-tools">
         <button class="button secondary" type="button" aria-label="上一年" :disabled="loading || !frames.length" @click="previousFrame">‹</button>

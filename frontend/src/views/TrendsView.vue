@@ -1,7 +1,7 @@
 <template>
   <AppShell>
     <div class="page-head">
-      <div><div class="eyebrow">SPECTRUM / TRENDS</div><h1 class="page-title">热度趋势洞察</h1><p class="page-intro">用统一的论文覆盖率口径，比较三大会议中关键词的年度变化。</p></div>
+      <div><div class="eyebrow">SPECTRUM / TRENDS</div><h1 class="page-title">热度趋势洞察</h1><p class="page-intro">用统一的论文覆盖率口径，比较三大会议中研究方向的年度变化。</p></div>
       <div class="status-line"><span class="status-dot" />支持播放、暂停与速度调整</div>
     </div>
     <div class="filter-bar panel">
@@ -13,9 +13,9 @@
     <div v-if="loading" class="loading-box">正在生成年度热度序列……</div>
     <div v-else-if="error" class="error-box">{{ error }} <button class="button secondary retry" type="button" @click="load">重试</button></div>
     <template v-else>
-      <article class="panel chart-panel"><div class="panel-heading"><div><div class="eyebrow">HEAT / TIME SERIES</div><h2>关键词年度热度轨迹</h2></div><span class="mono dim">单位：每千篇论文覆盖数</span></div><div class="panel-body"><TrendChart :payload="payload" :conference="conference" /></div></article>
+      <article class="panel chart-panel"><div class="panel-heading"><div><div class="eyebrow">HEAT / TIME SERIES</div><h2>研究方向年度热度轨迹</h2></div><span class="mono dim">单位：每千篇论文覆盖数</span></div><div class="panel-body"><TrendChart :payload="payload" :conference="conference" /></div></article>
       <EvolutionPanel />
-      <article class="panel table-panel"><div class="panel-heading"><div><div class="eyebrow">METHOD / DEFINITION</div><h2>如何阅读这张图</h2></div></div><div class="panel-body method-grid"><div><strong>热度</strong><p>某关键词在会议/年份论文中的覆盖率乘以 1000，减少不同年份样本量差异。</p></div><div><strong>联动</strong><p>切换会议或年份后，图表重新从 SQLite 统计接口读取数据，不使用页面硬编码数字。</p></div><div><strong>边界</strong><p>关键词可能来自原始字段或 TF-IDF 提取，来源在论文详情中单独标记。</p></div></div></article>
+      <article class="panel table-panel"><div class="panel-heading"><div><div class="eyebrow">METHOD / DEFINITION</div><h2>如何阅读这张图</h2></div></div><div class="panel-body method-grid"><div><strong>热度</strong><p>某研究方向在会议/年份论文中的覆盖率乘以 1000，减少不同年份样本量差异。</p></div><div><strong>联动</strong><p>切换会议或年份后，图表重新从 SQLite 统计接口读取数据，不使用页面硬编码数字。</p></div><div><strong>边界</strong><p>研究方向由原始关键词或 TF-IDF 结果按固定词元映射得到，来源在论文详情中单独标记。</p></div></div></article>
     </template>
   </AppShell>
 </template>

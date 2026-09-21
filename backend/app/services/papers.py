@@ -11,7 +11,12 @@ from sqlalchemy.orm import Session
 
 from app.models import Keyword, Paper, PaperKeyword
 from app.schemas import ImportItemResult, ImportSummary, PaperCreate, PaperList, PaperRead, PaperUpdate
-from app.services.keywords import extract_scored_keywords, normalize_keyword
+from app.services.keywords import (
+    canonical_research_area,
+    extract_scored_keywords,
+    normalize_keyword,
+    research_area_for,
+)
 
 
 class DuplicatePaperError(ValueError):
@@ -24,6 +29,20 @@ def normalize_title(title: str) -> str:
 
 def _keyword_names(values: Iterable[str]) -> list[str]:
     return list(dict.fromkeys(item for item in (normalize_keyword(value) for value in values) if item))
+
+
+def _keyword_filter_names(session: Session, value: str, scope: str) -> list[str]:
+    normalized = normalize_keyword(value)
+    if scope != "area":
+        return [normalized]
+    area = canonical_research_area(normalized)
+    if area is None:
+        return []
+    return [
+        name
+        for name in session.scalars(select(Keyword.name)).all()
+        if research_area_for(name) == area
+    ]
 
 
 def _replace_keywords(session: Session, paper: Paper, values: list[str]) -> None:
@@ -99,6 +118,7 @@ def list_papers(
     *,
     year_from: int | None = None,
     year_to: int | None = None,
+    keyword_scope: str = "keyword",
 ) -> PaperList:
     query = select(Paper)
     if q:
@@ -120,7 +140,12 @@ def list_papers(
     if year_to is not None:
         query = query.where(Paper.year <= year_to)
     if keyword:
-        query = query.join(PaperKeyword).join(Keyword).where(Keyword.name == normalize_keyword(keyword))
+        names = _keyword_filter_names(session, keyword, keyword_scope)
+        query = query.where(
+            Paper.paper_keywords.any(
+                PaperKeyword.keyword.has(Keyword.name.in_(names))
+            )
+        )
     count = session.scalar(select(func.count()).select_from(query.subquery())) or 0
     rows = session.scalars(
         query.order_by(Paper.year.desc(), Paper.id.desc()).offset((page - 1) * page_size).limit(page_size)
@@ -234,6 +259,7 @@ def export_papers(
     *,
     year_from: int | None = None,
     year_to: int | None = None,
+    keyword_scope: str = "keyword",
 ) -> tuple[bytes, str]:
     query = select(Paper).order_by(Paper.year.desc(), Paper.id.asc())
     if q:
@@ -250,15 +276,19 @@ def export_papers(
     if year_to is not None:
         query = query.where(Paper.year <= year_to)
     if keyword:
-        normalized_keyword = normalize_keyword(keyword)
+        keyword_names = _keyword_filter_names(session, keyword, keyword_scope)
         if q:
             query = query.where(
                 Paper.paper_keywords.any(
-                    PaperKeyword.keyword.has(Keyword.name == normalized_keyword)
+                    PaperKeyword.keyword.has(Keyword.name.in_(keyword_names))
                 )
             )
         else:
-            query = query.join(PaperKeyword).join(Keyword).where(Keyword.name == normalized_keyword)
+            query = query.where(
+                Paper.paper_keywords.any(
+                    PaperKeyword.keyword.has(Keyword.name.in_(keyword_names))
+                )
+            )
     papers = session.scalars(query).unique().all()
     if export_format == "csv":
         output = io.StringIO(newline="")

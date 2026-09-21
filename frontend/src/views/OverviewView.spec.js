@@ -78,4 +78,32 @@ describe("OverviewView", () => {
     await wrapper.get(".topic-row").trigger("click")
     expect(wrapper.get("[data-testid='topic-inspector']").text()).toBe("transformer")
   })
+
+  it("marks research-area rows so the inspector can aggregate their keywords", async () => {
+    api.topics.mockResolvedValue({ data: [{ keyword: "Diffusion & Generative Models", papers: 2, heat: 10 }] })
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: "/", name: "overview", component: OverviewView }],
+    })
+    await router.push({ name: "overview" })
+
+    const wrapper = mount(OverviewView, {
+      global: {
+        plugins: [router],
+        stubs: {
+          AppShell: { template: "<div><slot /></div>" },
+          KeywordGraph: true,
+          MetricCard: true,
+          TopicInspectorDrawer: {
+            props: ["keyword", "open", "scope"],
+            template: "<aside v-if=\"open\" data-testid=\"topic-inspector\">{{ keyword }} / {{ scope }}</aside>",
+          },
+        },
+      },
+    })
+    await flushPromises()
+
+    await wrapper.get(".topic-row").trigger("click")
+    expect(wrapper.get("[data-testid='topic-inspector']").text()).toBe("Diffusion & Generative Models / area")
+  })
 })

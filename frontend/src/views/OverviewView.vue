@@ -25,7 +25,7 @@
         <MetricCard label="样本论文" :value="formatNumber(summary.total_papers)" caption="当前筛选范围" />
         <MetricCard label="覆盖会议" :value="summary.conference_count" caption="CVPR / ICCV / ECCV" tone="amber" />
         <MetricCard label="年份跨度" :value="yearRange" caption="来自当前数据库" tone="green" />
-        <MetricCard label="热门关键词" :value="topics[0]?.keyword || '—'" :caption="topics[0] ? formatHeat(topics[0].heat) + ' 覆盖率' : '暂无统计'" tone="coral" />
+        <MetricCard label="热门研究方向" :value="topics[0]?.keyword || '—'" :caption="topics[0] ? formatHeat(topics[0].heat) + ' 覆盖率' : '暂无统计'" tone="coral" />
       </section>
 
       <section class="dashboard-grid">
@@ -33,7 +33,7 @@
           <div class="panel-heading"><div><div class="eyebrow">RANK / TOPIC COVERAGE</div><h2>Top 10 热门研究方向</h2></div><span class="mono dim">最多 10 项</span></div>
           <p class="topic-note">关键词按词元映射到研究领域后，以领域覆盖论文数（并集去重）降序排列；image、model 等泛化载体词不参与排名。覆盖率（‰）= 覆盖论文数 / 当前范围论文总数 × 1000；同一篇论文可属于多个领域，因此各领域覆盖率之和可超过 1000‰。</p>
           <div class="panel-body topic-list">
-            <button v-for="(topic, index) in topics" :key="topic.keyword" class="topic-row" type="button" :aria-label="`了解更多：${topic.keyword}`" @click="selectTopic(topic.keyword)">
+            <button v-for="(topic, index) in topics" :key="topic.keyword" class="topic-row" type="button" :aria-label="`了解更多：${topic.keyword}`" @click="selectTopic(topic.keyword, 'area')">
               <span class="rank">{{ String(index + 1).padStart(2, '0') }}</span>
               <span class="topic-name">{{ topic.keyword }}</span>
               <span class="topic-count">{{ topic.papers }} 篇</span>
@@ -50,7 +50,7 @@
       </section>
     </template>
 
-    <TopicInspectorDrawer :keyword="selectedTopic" :open="Boolean(selectedTopic)" @close="closeInspector" @select-related="selectTopic" @view-papers="viewTopicPapers" />
+    <TopicInspectorDrawer :keyword="selectedTopic?.keyword || ''" :scope="selectedTopic?.scope || 'keyword'" :open="Boolean(selectedTopic)" @close="closeInspector" @select-related="selectTopic" @view-papers="viewTopicPapers" />
   </AppShell>
 </template>
 
@@ -71,7 +71,7 @@ const filters = reactive({ year_from: "", year_to: "" })
 const summary = ref({ total_papers: null, conference_count: 0, year_from: null, year_to: null })
 const topics = ref([])
 const graph = ref({ nodes: [], links: [] })
-const selectedTopic = ref("")
+const selectedTopic = ref(null)
 const loading = ref(true)
 const error = ref("")
 const loadRequestId = ref(0)
@@ -123,14 +123,16 @@ function resetFilters() {
   Object.assign(filters, { year_from: "", year_to: "" })
   setConference("")
 }
-function selectTopic(keyword) {
-  if (keyword) selectedTopic.value = keyword
+function selectTopic(keyword, scope = "keyword") {
+  if (keyword) selectedTopic.value = { keyword, scope }
 }
 function closeInspector() {
-  selectedTopic.value = ""
+  selectedTopic.value = null
 }
-function viewTopicPapers(keyword) {
+function viewTopicPapers(keyword, scope = "keyword") {
   const query = { ...route.query, keyword }
+  if (scope === "area") query.keyword_scope = "area"
+  else delete query.keyword_scope
   for (const [name, value] of Object.entries(filters)) {
     if (value !== "" && value !== null && value !== undefined) query[name] = value
   }

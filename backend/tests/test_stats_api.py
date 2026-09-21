@@ -100,3 +100,33 @@ def test_trends_returns_top_research_areas_by_coverage(client):
     assert response.status_code == 200
     areas = [series["keyword"] for series in response.json()["series"]]
     assert areas == ["Segmentation"]
+
+
+def test_topic_inspector_aggregates_a_research_area_when_requested(client):
+    for index, keywords in enumerate((["diffusion"], ["generative"]), start=1):
+        response = client.post(
+            "/api/papers",
+            json={
+                "title": f"Diffusion Area Paper {index}",
+                "conference": "CVPR",
+                "year": 2024,
+                "abstract": "generative vision",
+                "keywords": keywords,
+                "source": "demo",
+            },
+        )
+        assert response.status_code == 201
+
+    response = client.get(
+        "/api/stats/topics/Diffusion%20%26%20Generative%20Models/inspector",
+        params={"scope": "area"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["keyword"] == "Diffusion & Generative Models"
+    assert body["papers"] == 2
+    assert {paper["title"] for paper in body["representative_papers"]} == {
+        "Diffusion Area Paper 1",
+        "Diffusion Area Paper 2",
+    }

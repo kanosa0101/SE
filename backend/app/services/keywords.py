@@ -87,6 +87,15 @@ def normalize_keyword(value: str) -> str:
     return ALIASES.get(normalized, normalized)
 
 
+def canonical_research_area(value: str) -> str | None:
+    """Return the display label for a research-area query, if it is one."""
+    normalized = normalize_keyword(value)
+    for area, _signals in RESEARCH_AREAS:
+        if normalize_keyword(area) == normalized:
+            return area
+    return None
+
+
 def extract_scored_keywords(
     title: str | None,
     abstract: str | None,

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -29,6 +31,7 @@ def read_papers(
     year_from: int | None = Query(default=None, ge=1990, le=2100),
     year_to: int | None = Query(default=None, ge=1990, le=2100),
     keyword: str | None = None,
+    keyword_scope: Literal["keyword", "area"] = Query(default="keyword"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=25, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -43,6 +46,7 @@ def read_papers(
         page_size,
         year_from=year_from,
         year_to=year_to,
+        keyword_scope=keyword_scope,
     )
 
 
@@ -63,6 +67,7 @@ def export(
     year_from: int | None = Query(default=None, ge=1990, le=2100),
     year_to: int | None = Query(default=None, ge=1990, le=2100),
     keyword: str | None = None,
+    keyword_scope: Literal["keyword", "area"] = Query(default="keyword"),
     db: Session = Depends(get_db),
 ) -> StreamingResponse:
     content, media_type = export_papers(
@@ -74,6 +79,7 @@ def export(
         keyword,
         year_from=year_from,
         year_to=year_to,
+        keyword_scope=keyword_scope,
     )
     extension = "csv" if format == "csv" else "bib"
     return StreamingResponse(iter([content]), media_type=media_type, headers={"Content-Disposition": f"attachment; filename=papers.{extension}"})

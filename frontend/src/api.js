@@ -13,7 +13,7 @@ export const statsApi = {
   trends: (params = {}) => client.get("/stats/trends", { params }),
   evolution: (limit = 10) => client.get("/stats/evolution", { params: { limit } }),
   quality: () => client.get("/stats/quality"),
-  inspector: (keyword) => client.get(`/stats/topics/${encodeURIComponent(keyword)}/inspector`),
+  inspector: (keyword, scope = "keyword") => client.get(`/stats/topics/${encodeURIComponent(keyword)}/inspector`, { params: { scope } }),
 }
 
 export const papersApi = {
