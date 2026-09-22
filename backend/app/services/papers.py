@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from datetime import datetime
 
 from pydantic import ValidationError
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, insert, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -14,6 +14,7 @@ from app.schemas import ImportItemResult, ImportSummary, PaperCreate, PaperList,
 from app.services.keywords import (
     canonical_research_area,
     extract_scored_keywords,
+    extract_scored_keywords_batch,
     normalize_keyword,
     research_area_for,
 )
@@ -45,15 +46,27 @@ def _keyword_filter_names(session: Session, value: str, scope: str) -> list[str]
     ]
 
 
-def _replace_keywords(session: Session, paper: Paper, values: list[str]) -> None:
-    session.query(PaperKeyword).filter(PaperKeyword.paper_id == paper.id).delete(synchronize_session=False)
-    for name, score, method in extract_scored_keywords(paper.title, paper.abstract, values):
-        keyword = session.scalar(select(Keyword).where(Keyword.name == name))
+def _replace_keywords(
+    session: Session,
+    paper: Paper,
+    values: list[str],
+    keyword_cache: dict[str, Keyword] | None = None,
+) -> None:
+    if paper.id is not None:
+        session.query(PaperKeyword).filter(PaperKeyword.paper_id == paper.id).delete(synchronize_session=False)
+    scored_keywords = extract_scored_keywords(paper.title, paper.abstract, values)
+    resolved_keywords = keyword_cache if keyword_cache is not None else {}
+    for name, _score, _method in scored_keywords:
+        keyword = resolved_keywords.get(name)
+        if keyword is None:
+            keyword = session.scalar(select(Keyword).where(Keyword.name == name))
         if keyword is None:
             keyword = Keyword(name=name)
             session.add(keyword)
-            session.flush()
-        session.add(PaperKeyword(paper_id=paper.id, keyword_id=keyword.id, score=score, method=method))
+        resolved_keywords[name] = keyword
+    for name, score, method in scored_keywords:
+        keyword = resolved_keywords[name]
+        session.add(PaperKeyword(paper=paper, keyword=keyword, score=score, method=method))
 
 
 def serialize_paper(paper: Paper) -> PaperRead:
@@ -76,24 +89,35 @@ def serialize_paper(paper: Paper) -> PaperRead:
     )
 
 
-def create_paper(session: Session, payload: PaperCreate) -> PaperRead:
+def _add_paper(
+    session: Session,
+    payload: PaperCreate,
+    *,
+    keyword_cache: dict[str, Keyword] | None = None,
+    check_duplicate: bool = True,
+) -> Paper:
     values = payload.model_dump()
     keywords = _keyword_names(values.pop("keywords", []))
     values["normalized_title"] = normalize_title(values["title"])
-    duplicate = session.scalar(
-        select(Paper).where(
-            Paper.normalized_title == values["normalized_title"],
-            Paper.conference == values["conference"],
-            Paper.year == values["year"],
+    if check_duplicate:
+        duplicate = session.scalar(
+            select(Paper).where(
+                Paper.normalized_title == values["normalized_title"],
+                Paper.conference == values["conference"],
+                Paper.year == values["year"],
+            )
         )
-    )
-    if duplicate is not None:
-        raise DuplicatePaperError("相同会议、年份和标题的论文已存在")
+        if duplicate is not None:
+            raise DuplicatePaperError("相同会议、年份和标题的论文已存在")
     paper = Paper(**values)
     session.add(paper)
+    _replace_keywords(session, paper, keywords, keyword_cache)
+    return paper
+
+
+def create_paper(session: Session, payload: PaperCreate) -> PaperRead:
     try:
-        session.flush()
-        _replace_keywords(session, paper, keywords)
+        paper = _add_paper(session, payload)
         session.commit()
     except IntegrityError as exc:
         session.rollback()
@@ -219,34 +243,88 @@ def _payload_from_row(row: dict[str, str], default_source: str = "csv") -> Paper
     )
 
 
-def import_csv(session: Session, content: bytes) -> ImportSummary:
+def _bulk_add_papers(session: Session, payloads: list[PaperCreate]) -> None:
+    if not payloads:
+        return
+
+    paper_rows: list[dict[str, object]] = []
+    keywords_by_identity: dict[tuple[str, str, int], list[tuple[str, float, str]]] = {}
+    keyword_names: set[str] = set()
+    extracted_keywords = extract_scored_keywords_batch(
+        [(payload.title, payload.abstract, payload.keywords) for payload in payloads]
+    )
+    for payload, scored in zip(payloads, extracted_keywords, strict=True):
+        identity = (normalize_title(payload.title), payload.conference, payload.year)
+        paper_rows.append(
+            payload.model_dump(exclude={"keywords"})
+            | {"normalized_title": identity[0]}
+        )
+        keywords_by_identity[identity] = scored
+        keyword_names.update(name for name, _score, _method in scored)
+
+    existing_keyword_names = set(session.scalars(select(Keyword.name)).all())
+    new_keyword_names = sorted(keyword_names - existing_keyword_names)
+    if new_keyword_names:
+        session.execute(insert(Keyword), [{"name": name} for name in new_keyword_names])
+    session.execute(insert(Paper), paper_rows)
+
+    paper_ids = {
+        (normalized_title, conference, year): paper_id
+        for paper_id, normalized_title, conference, year in session.execute(
+            select(Paper.id, Paper.normalized_title, Paper.conference, Paper.year)
+        ).all()
+    }
+    keyword_ids = dict(session.execute(select(Keyword.name, Keyword.id)).all())
+    relations = []
+    for identity, scored in keywords_by_identity.items():
+        paper_id = paper_ids[identity]
+        relations.extend(
+            {
+                "paper_id": paper_id,
+                "keyword_id": keyword_ids[name],
+                "score": score,
+                "method": method,
+            }
+            for name, score, method in scored
+        )
+    if relations:
+        session.execute(insert(PaperKeyword), relations)
+
+
+def import_csv(session: Session, content: bytes, *, strict: bool = False) -> ImportSummary:
     decoded = content.decode("utf-8-sig")
-    rows = csv.DictReader(io.StringIO(decoded))
-    results: list[ImportItemResult] = []
-    created = skipped = errors = 0
+    rows = list(csv.DictReader(io.StringIO(decoded)))
+    result_by_row: dict[int, ImportItemResult] = {}
+    pending: list[tuple[int, str | None, PaperCreate]] = []
+    identity_keys = {
+        (normalized_title, conference, year)
+        for normalized_title, conference, year in session.execute(
+            select(Paper.normalized_title, Paper.conference, Paper.year)
+        ).all()
+    }
     for index, row in enumerate(rows, start=2):
         title = (row.get("title") or "").strip() or None
         try:
             payload = _payload_from_row(row)
-            existing = session.scalar(
-                select(Paper).where(
-                    Paper.normalized_title == normalize_title(payload.title),
-                    Paper.conference == payload.conference,
-                    Paper.year == payload.year,
-                )
-            )
-            if existing:
-                skipped += 1
-                results.append(ImportItemResult(row=index, title=title, status="skipped", message="记录已存在"))
+            identity = (normalize_title(payload.title), payload.conference, payload.year)
+            if identity in identity_keys:
+                result_by_row[index] = ImportItemResult(row=index, title=title, status="skipped", message="记录已存在")
                 continue
-            create_paper(session, payload)
-            created += 1
-            results.append(ImportItemResult(row=index, title=title, status="created", message="已入库"))
+            identity_keys.add(identity)
+            pending.append((index, title, payload))
         except (ValidationError, ValueError, DuplicatePaperError) as exc:
-            session.rollback()
-            errors += 1
-            results.append(ImportItemResult(row=index, title=title, status="error", message=str(exc)))
-    return ImportSummary(total=created + skipped + errors, created=created, skipped=skipped, errors=errors, items=results)
+            if strict:
+                raise
+            result_by_row[index] = ImportItemResult(row=index, title=title, status="error", message=str(exc))
+    _bulk_add_papers(session, [payload for _index, _title, payload in pending])
+    session.commit()
+    for index, title, _payload in pending:
+        result_by_row[index] = ImportItemResult(row=index, title=title, status="created", message="已入库")
+    results = [result_by_row[index] for index in range(2, len(rows) + 2)]
+    created = sum(item.status == "created" for item in results)
+    skipped = sum(item.status == "skipped" for item in results)
+    errors = sum(item.status == "error" for item in results)
+    return ImportSummary(total=len(rows), created=created, skipped=skipped, errors=errors, items=results)
 
 
 def export_papers(

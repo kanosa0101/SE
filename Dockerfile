@@ -11,7 +11,9 @@ FROM python:3.12-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     CVINSIGHT_FRONTEND_DIST=/app/frontend/dist \
-    CVINSIGHT_DATABASE_URL=sqlite:////var/lib/cvinsight/cvinsight.db
+    CVINSIGHT_DATABASE_URL=sqlite:////var/lib/cvinsight/cvinsight.db \
+    CVINSIGHT_BOOTSTRAP_FILES=/app/data/cvf_pre2022.csv,/app/data/cvf_2022_2025_full.csv \
+    CVINSIGHT_CVF_CACHE_DIR=/var/lib/cvinsight/cvf-cache
 
 WORKDIR /app
 COPY backend/requirements.txt /app/backend/requirements.txt

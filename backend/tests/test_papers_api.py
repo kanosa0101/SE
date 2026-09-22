@@ -1,5 +1,8 @@
 import io
 
+from app.db import init_db, make_engine, session_factory
+from app.services.papers import import_csv
+
 
 def paper_payload(title="A Test Vision Paper"):
     return {
@@ -123,10 +126,71 @@ def test_csv_import_rejects_malformed_crawled_at(client):
     assert "invalid crawled_at timestamp" in response.json()["items"][0]["message"]
 
 
-def test_lookup_without_configured_source_returns_explainable_error(client):
+def test_csv_import_commits_valid_rows_as_one_batch(tmp_path, monkeypatch):
+    engine = make_engine(f"sqlite:///{tmp_path / 'batch.db'}")
+    init_db(engine)
+    session = session_factory(engine)()
+    commits = 0
+    original_commit = session.commit
+
+    def counted_commit():
+        nonlocal commits
+        commits += 1
+        original_commit()
+
+    monkeypatch.setattr(session, "commit", counted_commit)
+    content = (
+        b"title,conference,year,keywords\n"
+        b"Batch Paper 1,CVPR,2024,detection\n"
+        b"Batch Paper 2,ICCV,2023,segmentation\n"
+        b"Batch Paper 3,ECCV,2022,transformer\n"
+    )
+
+    summary = import_csv(session, content)
+
+    assert summary.created == 3
+    assert summary.errors == 0
+    assert commits == 1
+    session.close()
+
+
+def test_strict_csv_import_flushes_the_batch_once(tmp_path, monkeypatch):
+    engine = make_engine(f"sqlite:///{tmp_path / 'strict.db'}")
+    init_db(engine)
+    session = session_factory(engine)()
+    flushes = 0
+    original_flush = session.flush
+
+    def counted_flush(*args, **kwargs):
+        nonlocal flushes
+        flushes += 1
+        return original_flush(*args, **kwargs)
+
+    monkeypatch.setattr(session, "flush", counted_flush)
+    content = (
+        b"title,conference,year,keywords\n"
+        b"Strict Paper 1,CVPR,2024,detection\n"
+        b"Strict Paper 2,ICCV,2023,segmentation\n"
+        b"Strict Paper 3,ECCV,2022,transformer\n"
+    )
+
+    summary = import_csv(session, content, strict=True)
+
+    assert summary.created == 3
+    assert flushes <= 1
+    session.close()
+
+
+def test_lookup_without_configured_source_returns_explainable_error(client, monkeypatch):
+    from app.api import papers as papers_api
     from app.config import Settings, get_settings
     from app.main import app
+    from app.services.lookup import LookupUnavailableError
 
+    def unavailable(*args, **kwargs):
+        raise LookupUnavailableError("CVF 网站在线检索暂时不可用")
+
+    monkeypatch.setattr(papers_api, "lookup_cvf_title", unavailable, raising=False)
     app.dependency_overrides[get_settings] = lambda: Settings(lookup_url=None)
     try:
         response = client.get("/api/papers/lookup", params={"title": "Unknown Paper"})
@@ -134,7 +198,35 @@ def test_lookup_without_configured_source_returns_explainable_error(client):
         app.dependency_overrides.pop(get_settings, None)
 
     assert response.status_code == 502
-    assert "未配置" in response.json()["detail"]
+    assert "CVF" in response.json()["detail"]
+
+
+def test_lookup_without_external_source_returns_cvf_metadata(client, monkeypatch):
+    from app.api import papers as papers_api
+    from app.config import Settings, get_settings
+    from app.main import app
+    from app.schemas import PaperCreate
+
+    expected = PaperCreate(
+        title="Cvf Online Paper",
+        abstract="Online abstract",
+        keywords=["vision-language model"],
+        conference="ECCV",
+        year=2024,
+        source="CVF",
+        source_url="https://openaccess.thecvf.com/paper",
+    )
+    monkeypatch.setattr(papers_api, "lookup_cvf_title", lambda *args, **kwargs: expected, raising=False)
+    app.dependency_overrides[get_settings] = lambda: Settings(lookup_url=None)
+    try:
+        response = client.get("/api/papers/lookup", params={"title": "Cvf Online Paper"})
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+
+    assert response.status_code == 200
+    assert response.json()["abstract"] == "Online abstract"
+    assert response.json()["keywords"] == ["vision-language model"]
+    assert response.json()["source_url"] == "https://openaccess.thecvf.com/paper"
 
 
 

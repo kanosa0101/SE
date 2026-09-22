@@ -1,7 +1,9 @@
 import httpx
 import pytest
 
+import app.services.lookup as lookup_module
 from app.config import Settings
+from app.crawlers.cvf import CvfRecord
 from app.services.lookup import LookupUnavailableError, lookup_title
 
 
@@ -127,3 +129,46 @@ def test_lookup_without_configured_source():
         lookup_title("A ConvNet for the 2020s", Settings(lookup_url=None))
 
     assert "未配置" in str(exc_info.value)
+
+
+def test_lookup_cvf_title_maps_cvf_metadata(monkeypatch, tmp_path):
+    finder = getattr(lookup_module, "lookup_cvf_title", None)
+    assert callable(finder)
+
+    record = CvfRecord(
+        title="A Test Paper",
+        authors="Alice Example and Bob Example",
+        abstract="A concise abstract.",
+        conference="CVPR",
+        year=2024,
+        source_url="https://openaccess.thecvf.com/content/CVPR2024/html/A_Test_Paper_CVPR_2024_paper.html",
+        pdf_url="https://openaccess.thecvf.com/content/CVPR2024/papers/A_Test_Paper_CVPR_2024_paper.pdf",
+        keywords=["diffusion model", "vision-language model"],
+        parser_version="cvf-v1",
+        parse_warnings=[],
+    )
+
+    class FakeCrawler:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def find_title(self, title, conferences, years):
+            assert title == "A Test Paper"
+            assert conferences == ["CVPR", "ICCV", "ECCV"]
+            assert years == list(range(2025, 2015, -1))
+            return record
+
+    monkeypatch.setattr(lookup_module, "CvfCrawler", FakeCrawler, raising=False)
+    paper = finder("A Test Paper", Settings(cvf_cache_dir=str(tmp_path)))
+
+    assert paper.title == record.title
+    assert paper.abstract == record.abstract
+    assert paper.keywords == record.keywords
+    assert paper.source_url == record.source_url
+    assert paper.source == "CVF"

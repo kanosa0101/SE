@@ -134,6 +134,59 @@ def extract_scored_keywords(
     return result
 
 
+def extract_scored_keywords_batch(
+    documents: Iterable[tuple[str | None, str | None, Iterable[str] | None]],
+    limit: int = 10,
+) -> list[list[tuple[str, float, str]]]:
+    document_list = list(documents)
+    results: list[list[tuple[str, float, str]]] = [[] for _ in document_list]
+    text_positions: list[int] = []
+    texts: list[str] = []
+
+    for index, (title, abstract, provided_keywords) in enumerate(document_list):
+        provided = [normalize_keyword(item) for item in (provided_keywords or [])]
+        provided = list(dict.fromkeys(item for item in provided if item))
+        if provided:
+            results[index] = [(item, 1.0, "provided") for item in provided[:limit]]
+            continue
+        text = " ".join(part for part in (title or "", abstract or "") if part).strip()
+        if text:
+            text_positions.append(index)
+            texts.append(text)
+
+    if not texts:
+        return results
+
+    vectorizer = TfidfVectorizer(
+        stop_words=list(STOP_WORDS),
+        ngram_range=(1, 2),
+        token_pattern=r"(?u)\b[a-zA-Z][a-zA-Z0-9\-]{2,}\b",
+    )
+    try:
+        matrix = vectorizer.fit_transform(texts)
+    except ValueError:
+        return results
+
+    terms = vectorizer.get_feature_names_out()
+    for row_index, document_index in enumerate(text_positions):
+        row = matrix.getrow(row_index)
+        ranked = sorted(
+            zip(row.indices, row.data),
+            key=lambda item: (-float(item[1]), terms[item[0]]),
+        )
+        seen: set[str] = set()
+        extracted: list[tuple[str, float, str]] = []
+        for term_index, score in ranked:
+            normalized = normalize_keyword(terms[term_index])
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                extracted.append((normalized, round(float(score), 6), "tfidf"))
+            if len(extracted) == limit:
+                break
+        results[document_index] = extracted
+    return results
+
+
 def extract_keywords(
     title: str | None,
     abstract: str | None,

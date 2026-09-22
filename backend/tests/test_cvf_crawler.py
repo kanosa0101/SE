@@ -6,6 +6,7 @@ from pathlib import Path
 
 import httpx
 
+import app.crawlers.cvf as cvf_module
 from app.crawlers.cvf import CvfCrawler, CvfRecord, _RateLimiter, parse_detail, parse_index
 
 
@@ -23,6 +24,52 @@ def test_parse_index_deduplicates_and_resolves_relative_links() -> None:
         "https://openaccess.thecvf.com/content/CVPR2024/html/A_Test_Paper_CVPR_2024_paper.html",
         "https://openaccess.thecvf.com/content/CVPR2024/html/Another_Test_Paper_CVPR_2024_paper.html",
     ]
+
+
+def test_parse_index_entries_preserves_link_titles() -> None:
+    parser = getattr(cvf_module, "parse_index_entries", None)
+    assert callable(parser)
+
+    entries = parser(read_fixture("cvf_index.html"), "https://openaccess.thecvf.com")
+
+    assert entries == [
+        (
+            "https://openaccess.thecvf.com/content/CVPR2024/html/A_Test_Paper_CVPR_2024_paper.html",
+            "A Test Paper",
+        ),
+        (
+            "https://openaccess.thecvf.com/content/CVPR2024/html/Another_Test_Paper_CVPR_2024_paper.html",
+            "Another Test Paper",
+        ),
+    ]
+
+
+def test_find_title_fetches_only_matching_detail_page(tmp_path):
+    detail_url = "https://example.test/content/CVPR2024/html/A_Test_Paper_CVPR_2024_paper.html"
+    requested_paths = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested_paths.append(request.url.path)
+        if request.url.path == "/CVPR2024":
+            return httpx.Response(200, text=read_fixture("cvf_index.html"), request=request)
+        if request.url.path.endswith("A_Test_Paper_CVPR_2024_paper.html"):
+            return httpx.Response(200, text=read_fixture("cvf_detail.html"), request=request)
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    with CvfCrawler(
+        tmp_path,
+        base_url="https://example.test",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        delay=0,
+    ) as crawler:
+        finder = getattr(crawler, "find_title", None)
+        assert callable(finder)
+        record = finder("A Test Paper", ["CVPR"], [2024])
+
+    assert record is not None
+    assert record.title == "A Test Paper"
+    assert record.source_url == detail_url
+    assert "/content/CVPR2024/html/Another_Test_Paper_CVPR_2024_paper.html" not in requested_paths
 
 
 LEGACY_INDEX_HTML = """

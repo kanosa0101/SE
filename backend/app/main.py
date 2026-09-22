@@ -11,6 +11,7 @@ from app.api.papers import router as papers_router
 from app.api.stats import router as stats_router
 from app.config import get_settings
 from app.db import get_db, init_db, runtime_engine
+from app.services.bootstrap import bootstrap_database
 
 
 settings = get_settings()
@@ -19,6 +20,8 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db(runtime_engine)
+    files = [Path(item.strip()) for item in settings.bootstrap_files.split(",") if item.strip()]
+    bootstrap_database(runtime_engine, files)
     yield
 
 

@@ -68,7 +68,7 @@
       <div>
         <div class="eyebrow">REMOTE LOOKUP / FALLBACK</div>
         <h2>本地没有这篇论文</h2>
-        <p>可以调用已配置的在线来源进行标题检索；检索结果需要确认后才会写入本地数据库。</p>
+        <p>可以调用 CVF 网站进行标题检索；检索结果需要确认后才会写入本地数据库。</p>
       </div>
       <button class="button" type="button" :disabled="lookupLoading" @click="lookupOnline">{{ lookupLoading ? "检索中…" : "在线检索" }}</button>
     </section>

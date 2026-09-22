@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.schemas import ExportFormat, ImportSummary, PaperCreate, PaperList, PaperRead, PaperUpdate
-from app.services.lookup import LookupUnavailableError, lookup_title
+from app.services.lookup import LookupUnavailableError, lookup_cvf_title, lookup_title
 from app.services.papers import (
     DuplicatePaperError,
     create_paper,
@@ -53,7 +53,9 @@ def read_papers(
 @router.get("/lookup", response_model=PaperCreate)
 def lookup_paper(title: str = Query(min_length=1), settings=Depends(get_settings)) -> PaperCreate:
     try:
-        return lookup_title(title, settings)
+        if settings.lookup_url:
+            return lookup_title(title, settings)
+        return lookup_cvf_title(title, settings)
     except LookupUnavailableError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

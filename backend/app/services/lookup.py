@@ -1,8 +1,10 @@
 import re
+from pathlib import Path
 from typing import Any
 
 import httpx
 
+from app.crawlers.cvf import CvfCrawler
 from app.config import Settings
 from app.schemas import PaperCreate
 
@@ -104,3 +106,32 @@ def lookup_title(title: str, settings: Settings) -> PaperCreate:
     if any(_conference_from_record(record) for record in valid_records):
         raise LookupUnavailableError("在线检索结果与给定标题不够匹配")
     raise LookupUnavailableError("在线检索结果不属于 CVPR、ICCV 或 ECCV")
+
+
+def lookup_cvf_title(title: str, settings: Settings) -> PaperCreate:
+    with CvfCrawler(
+        Path(settings.cvf_cache_dir),
+        base_url=settings.cvf_base_url,
+        delay=0.1,
+        workers=4,
+        timeout=10.0,
+        max_retries=1,
+    ) as crawler:
+        record = crawler.find_title(
+            title,
+            ["CVPR", "ICCV", "ECCV"],
+            list(range(2025, 2015, -1)),
+        )
+    if record is None:
+        raise LookupUnavailableError("CVF 网站中没有找到匹配论文")
+    return PaperCreate(
+        title=record.title,
+        abstract=record.abstract,
+        authors=record.authors,
+        conference=record.conference,
+        year=record.year,
+        source="CVF",
+        source_url=record.source_url,
+        parser_version=record.parser_version,
+        keywords=record.keywords,
+    )

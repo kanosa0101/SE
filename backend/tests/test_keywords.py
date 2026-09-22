@@ -1,3 +1,4 @@
+import app.services.keywords as keywords_module
 from app.services.keywords import extract_keywords, normalize_keyword, research_area_for
 
 
@@ -47,3 +48,26 @@ def test_research_area_for_maps_direction_words_and_skips_generic_terms():
     # 泛化载体词不映射到任何领域，自然退出热门方向排名
     for generic in ("model", "image", "data", "learning", "deep", "training", "network", "abo"):
         assert research_area_for(generic) is None
+
+
+def test_batch_keyword_extraction_returns_one_deterministic_result_per_paper():
+    extractor = getattr(keywords_module, "extract_scored_keywords_batch", None)
+    assert callable(extractor)
+
+    results = extractor(
+        [
+            ("Diffusion models for image generation", "Diffusion models generate images.", []),
+            ("Vision-language model", "A model aligns vision and language.", ["VLM"]),
+        ],
+        limit=5,
+    )
+
+    assert len(results) == 2
+    assert results[1][0][0] == "vision-language model"
+    assert results == extractor(
+        [
+            ("Diffusion models for image generation", "Diffusion models generate images.", []),
+            ("Vision-language model", "A model aligns vision and language.", ["VLM"]),
+        ],
+        limit=5,
+    )

@@ -12,7 +12,7 @@
     <div v-if="successMessage" class="success-box">{{ successMessage }}</div>
     <div class="import-grid">
       <section class="panel">
-        <div class="panel-heading"><div><div class="eyebrow">SINGLE / LOOKUP</div><h2>单篇标题检索</h2></div><span class="mono dim">在线来源</span></div>
+        <div class="panel-heading"><div><div class="eyebrow">SINGLE / LOOKUP</div><h2>单篇标题检索</h2></div><span class="mono dim">CVF 网站</span></div>
         <div class="panel-body">
           <form class="lookup-form" @submit.prevent="lookup">
             <label>论文标题

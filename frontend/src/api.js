@@ -22,12 +22,12 @@ export const papersApi = {
   create: (payload) => client.post("/papers", payload),
   update: (id, payload) => client.put(`/papers/${id}`, payload),
   remove: (id) => client.delete(`/papers/${id}`),
-  lookup: (title) => client.get("/papers/lookup", { params: { title } }),
+  lookup: (title) => client.get("/papers/lookup", { params: { title }, timeout: 600_000 }),
   export: (format = "csv", params = {}) => client.get("/papers/export", { params: { format, ...params }, responseType: "blob" }),
   importCsv: (file) => {
     const form = new FormData()
     form.append("file", file)
-    return client.post("/papers/import", form)
+    return client.post("/papers/import", form, { timeout: 600_000 })
   },
 }
 

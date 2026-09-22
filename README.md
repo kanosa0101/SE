@@ -22,6 +22,8 @@ docker compose up -d --build
 http://localhost:8000
 ```
 
+首次启动会自动将 `data/cvf_pre2022.csv` 和 `data/cvf_2022_2025_full.csv` 导入 SQLite，约包含 25,773 篇论文；本地实测初始化约 90 秒，云服务器耗时取决于磁盘性能。后续重启会复用数据卷中的数据库，不重复导入。
+
 查看服务状态：
 
 ```powershell

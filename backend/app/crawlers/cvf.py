@@ -62,11 +62,27 @@ def _text(node: object) -> str:
     return " ".join(str(node.get_text(" ", strip=True)).split())  # type: ignore[union-attr]
 
 
-def parse_index(html: str, base_url: str) -> list[str]:
-    """Return unique paper-detail URLs from a CVF event index."""
+def _normalized_title(text: str) -> str:
+    return "".join(char for char in text.casefold() if char.isalnum())
+
+
+def _title_matches(query: str, candidate: str) -> bool:
+    normalized_query = _normalized_title(query)
+    normalized_candidate = _normalized_title(candidate)
+    if not normalized_query or not normalized_candidate:
+        return False
+    if normalized_query in normalized_candidate or normalized_candidate in normalized_query:
+        return True
+    query_tokens = set(re.findall(r"[a-z0-9]+", query.casefold()))
+    candidate_tokens = set(re.findall(r"[a-z0-9]+", candidate.casefold()))
+    return bool(query_tokens) and len(query_tokens & candidate_tokens) / len(query_tokens) >= 0.6
+
+
+def parse_index_entries(html: str, base_url: str) -> list[tuple[str, str]]:
+    """Return unique detail URLs and their visible titles from a CVF index."""
 
     soup = BeautifulSoup(html, "html.parser")
-    urls: list[str] = []
+    entries: list[tuple[str, str]] = []
     seen: set[str] = set()
     # 老年份（2016-2020）主页的论文链接是相对路径 content_cvpr_2016/...，
     # 新年份 day=all 页是绝对路径 /content/CVPR2021/...，两种形式都要命中，
@@ -78,8 +94,14 @@ def parse_index(html: str, base_url: str) -> list[str]:
         resolved = urljoin(base_url.rstrip("/") + "/", href)
         if resolved not in seen:
             seen.add(resolved)
-            urls.append(resolved)
-    return urls
+            entries.append((resolved, _text(link)))
+    return entries
+
+
+def parse_index(html: str, base_url: str) -> list[str]:
+    """Return unique paper-detail URLs from a CVF event index."""
+
+    return [url for url, _ in parse_index_entries(html, base_url)]
 
 
 def parse_all_papers_url(html: str, event_url: str) -> str | None:
@@ -361,6 +383,52 @@ class CvfCrawler:
                     self._limiter.sleeper(2**attempt * 0.25)
         self._record_manifest(url, "failed", last_error)
         return None, False
+
+    def find_title(
+        self,
+        title: str,
+        conferences: list[str],
+        years: list[int],
+    ) -> CvfRecord | None:
+        """Find one title by scanning CVF indexes before fetching its detail page."""
+
+        self._resume = True
+        for conference in conferences:
+            for year in years:
+                event_url = f"{self.base_url}/{conference}{year}"
+                index_html, skipped = self._fetch_html(event_url)
+                if skipped or index_html is None:
+                    continue
+
+                index_pages = [event_url]
+                all_papers_url = parse_all_papers_url(index_html, event_url)
+                if all_papers_url:
+                    index_pages.append(all_papers_url)
+                else:
+                    index_pages.extend(parse_day_urls(index_html, event_url))
+
+                entries: list[tuple[str, str]] = []
+                seen_urls: set[str] = set()
+                for index_page in dict.fromkeys(index_pages):
+                    page_html = index_html if index_page == event_url else self._fetch_html(index_page)[0]
+                    if page_html is None:
+                        continue
+                    for detail_url, link_title in parse_index_entries(page_html, self.base_url):
+                        if detail_url in seen_urls:
+                            continue
+                        seen_urls.add(detail_url)
+                        entries.append((detail_url, link_title))
+
+                for detail_url, link_title in entries:
+                    if not _title_matches(title, link_title):
+                        continue
+                    detail_html, not_found = self._fetch_html(detail_url)
+                    if not_found or detail_html is None:
+                        continue
+                    record = parse_detail(detail_html, conference, year, detail_url)
+                    if _title_matches(title, record.title):
+                        return record
+        return None
 
     def crawl_event(
         self, conference: str, year: int, limit: int | None = None
