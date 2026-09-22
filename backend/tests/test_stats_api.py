@@ -1,3 +1,6 @@
+from app.api import stats as stats_api
+
+
 def seed_papers(client):
     client.post(
         "/api/papers",
@@ -44,6 +47,27 @@ def test_topics_graph_and_trends_return_structured_statistics(client):
     assert len(topics.json()) <= 10
     assert {node["name"] for node in graph.json()["nodes"]}
     assert trends.json()["series"]
+
+
+def test_graph_keeps_the_keyword_node_count_compact(client):
+    for index in range(40):
+        response = client.post(
+            "/api/papers",
+            json={
+                "title": f"Graph Topic Paper {index}",
+                "conference": "CVPR",
+                "year": 2024,
+                "abstract": f"topic-{index}",
+                "keywords": [f"topic-{index}"],
+                "source": "demo",
+            },
+        )
+        assert response.status_code == 201
+
+    response = client.get("/api/stats/graph")
+
+    assert response.status_code == 200
+    assert len(response.json()["nodes"]) == 32
 
 
 def test_topics_ranks_research_areas_not_raw_words(client):
@@ -103,7 +127,7 @@ def test_trends_returns_top_research_areas_by_coverage(client):
 
 
 def test_topic_inspector_aggregates_a_research_area_when_requested(client):
-    for index, keywords in enumerate((["diffusion"], ["generative"]), start=1):
+    for index in range(1, 3):
         response = client.post(
             "/api/papers",
             json={
@@ -111,7 +135,7 @@ def test_topic_inspector_aggregates_a_research_area_when_requested(client):
                 "conference": "CVPR",
                 "year": 2024,
                 "abstract": "generative vision",
-                "keywords": keywords,
+                "keywords": ["diffusion", "generative"],
                 "source": "demo",
             },
         )
@@ -126,7 +150,43 @@ def test_topic_inspector_aggregates_a_research_area_when_requested(client):
     body = response.json()
     assert body["keyword"] == "Diffusion & Generative Models"
     assert body["papers"] == 2
+    assert body["year_series"] == [{"year": 2024, "papers": 2}]
+    assert len(body["representative_papers"]) == 2
     assert {paper["title"] for paper in body["representative_papers"]} == {
         "Diffusion Area Paper 1",
         "Diffusion Area Paper 2",
     }
+
+
+def test_topic_inspector_does_not_load_the_full_keyword_table(client, monkeypatch):
+    seed_papers(client)
+
+    def fail_if_full_table_is_loaded(*_args, **_kwargs):
+        raise AssertionError("topic inspector should query related rows only")
+
+    monkeypatch.setattr(stats_api, "_keyword_rows", fail_if_full_table_is_loaded)
+
+    response = client.get("/api/stats/topics/diffusion/inspector")
+
+    assert response.status_code == 200
+    assert response.json()["related_keywords"]
+
+
+def test_topic_inspector_limits_related_keyword_payload(client):
+    response = client.post(
+        "/api/papers",
+        json={
+            "title": "Anchor Topic Paper",
+            "conference": "CVPR",
+            "year": 2024,
+            "abstract": "anchor",
+            "keywords": ["anchor"] + [f"related-{index}" for index in range(12)],
+            "source": "demo",
+        },
+    )
+    assert response.status_code == 201
+
+    response = client.get("/api/stats/topics/anchor/inspector")
+
+    assert response.status_code == 200
+    assert len(response.json()["related_keywords"]) == 8

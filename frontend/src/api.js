@@ -5,15 +5,16 @@ const client = axios.create({
   // 统计接口在 12k+ 记录、SQLite 冷缓存时可达数秒，给足重查询余量。
   timeout: 15000,
 })
+const HOME_STATS_TIMEOUT = 60_000
 
 export const statsApi = {
-  overview: (params = {}) => client.get("/stats/overview", { params }),
-  topics: (params = {}) => client.get("/stats/topics", { params }),
-  graph: (params = {}) => client.get("/stats/graph", { params }),
+  overview: (params = {}) => client.get("/stats/overview", { params, timeout: HOME_STATS_TIMEOUT }),
+  topics: (params = {}) => client.get("/stats/topics", { params, timeout: HOME_STATS_TIMEOUT }),
+  graph: (params = {}) => client.get("/stats/graph", { params, timeout: HOME_STATS_TIMEOUT }),
   trends: (params = {}) => client.get("/stats/trends", { params }),
   evolution: (limit = 10) => client.get("/stats/evolution", { params: { limit } }),
   quality: () => client.get("/stats/quality"),
-  inspector: (keyword, scope = "keyword") => client.get(`/stats/topics/${encodeURIComponent(keyword)}/inspector`, { params: { scope } }),
+  inspector: (keyword, scope = "keyword") => client.get(`/stats/topics/${encodeURIComponent(keyword)}/inspector`, { params: { scope }, timeout: 60_000 }),
 }
 
 export const papersApi = {

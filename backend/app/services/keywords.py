@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from functools import lru_cache
 import re
 
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -56,6 +57,7 @@ RESEARCH_AREAS = [
 ]
 
 
+@lru_cache(maxsize=200_000)
 def research_area_for(name: str) -> str | None:
     """把归一化关键词映射到研究领域；未映射的泛化词返回 None。"""
     tokens = set(name.replace("-", " ").split())

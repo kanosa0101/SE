@@ -1,6 +1,8 @@
 from collections import Counter, defaultdict
 from itertools import combinations
 
+RELATED_KEYWORD_LIMIT = 8
+
 
 def calculate_heat(rows: list[dict], total_papers: int) -> float:
     if total_papers <= 0:
@@ -63,18 +65,26 @@ def build_topic_inspector(
         )
     ]
 
+    unique_rows = []
+    seen_paper_ids: set[int] = set()
+    for row in ordered_rows:
+        if row["paper_id"] in seen_paper_ids:
+            continue
+        seen_paper_ids.add(row["paper_id"])
+        unique_rows.append(row)
+
     related_rows = all_rows if all_rows is not None else rows
-    related_by_keyword: dict[str, list[dict]] = defaultdict(list)
+    related_by_keyword: dict[str, set[int]] = defaultdict(set)
     for row in related_rows:
         if row["keyword"] != keyword and row["paper_id"] in paper_ids:
-            related_by_keyword[row["keyword"]].append(row)
+            related_by_keyword[row["keyword"]].add(row["paper_id"])
     related_keywords = [
         {
             "keyword": related_name,
-            "papers": len({row["paper_id"] for row in related_keyword_rows}),
-            "heat": calculate_heat(related_keyword_rows, total_papers),
+            "papers": len(related_paper_ids),
+            "heat": round(len(related_paper_ids) / total_papers * 1000, 1) if total_papers else 0.0,
         }
-        for related_name, related_keyword_rows in related_by_keyword.items()
+        for related_name, related_paper_ids in related_by_keyword.items()
     ]
     related_keywords.sort(key=lambda item: (-item["papers"], -item["heat"], item["keyword"]))
 
@@ -84,10 +94,10 @@ def build_topic_inspector(
         "heat": calculate_heat(rows, total_papers),
         "conference_breakdown": conference_breakdown,
         "year_series": year_series,
-        "related_keywords": related_keywords,
+        "related_keywords": related_keywords[:RELATED_KEYWORD_LIMIT],
         "representative_papers": [
             {key: row[key] for key in ("paper_id", "title", "authors", "conference", "year", "abstract", "source", "source_url") if key in row}
-            for row in ordered_rows
+            for row in unique_rows[:6]
         ],
     }
 

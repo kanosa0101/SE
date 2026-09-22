@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest"
 
-import { edgeVisual, EDGE_MIN_WIDTH, EDGE_MAX_WIDTH, EDGE_MIN_OPACITY, EDGE_MAX_OPACITY, STRONG_EDGE_THRESHOLD } from "./graph"
+import {
+  edgeVisual,
+  nodeColor,
+  nodeVisual,
+  EDGE_MIN_WIDTH,
+  EDGE_MAX_WIDTH,
+  EDGE_MIN_OPACITY,
+  EDGE_MAX_OPACITY,
+  NODE_MIN_OPACITY,
+  NODE_MAX_OPACITY,
+  STRONG_EDGE_THRESHOLD,
+} from "./graph"
 
 describe("edgeVisual", () => {
   it("maps the maximum value to the strongest style", () => {
@@ -26,7 +37,30 @@ describe("edgeVisual", () => {
     expect(edgeVisual(10, 0)).toEqual({ width: EDGE_MIN_WIDTH, opacity: EDGE_MIN_OPACITY })
   })
 
-  it("uses a strong-relation threshold near the top decile of values", () => {
-    expect(STRONG_EDGE_THRESHOLD).toBe(75)
+  it("uses a lower threshold so the default view keeps more relationships", () => {
+    expect(STRONG_EDGE_THRESHOLD).toBe(30)
+  })
+})
+
+describe("nodeVisual", () => {
+  it("uses paper coverage to control node opacity", () => {
+    const weak = nodeVisual(1, 400)
+    const strong = nodeVisual(400, 400)
+
+    expect(strong.opacity).toBe(NODE_MAX_OPACITY)
+    expect(weak.opacity).toBeGreaterThanOrEqual(NODE_MIN_OPACITY)
+    expect(weak.opacity).toBeLessThan(strong.opacity)
+  })
+
+  it("falls back to the faintest node style for invalid input", () => {
+    expect(nodeVisual(undefined, 0)).toEqual({ opacity: NODE_MIN_OPACITY })
+  })
+})
+
+describe("nodeColor", () => {
+  it("uses a stronger cyan contrast for low and high paper coverage", () => {
+    expect(nodeColor(1, 400)).not.toBe(nodeColor(400, 400))
+    expect(nodeColor(1, 400)).toMatch(/^#[0-9a-f]{6}$/)
+    expect(nodeColor(400, 400)).toMatch(/^#[0-9a-f]{6}$/)
   })
 })

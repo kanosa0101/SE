@@ -56,6 +56,45 @@ describe("TopicInspectorDrawer", () => {
     expect(inspector).toHaveBeenCalledWith("Diffusion & Generative Models", "area")
   })
 
+  it("keeps the annual track visible when the API omits the year series", async () => {
+    inspector.mockResolvedValue({
+      data: {
+        ...payload,
+        year_series: [],
+        representative_papers: [
+          { ...payload.representative_papers[0], paper_id: 1, year: 2024 },
+          { ...payload.representative_papers[0], paper_id: 2, year: 2023 },
+          { ...payload.representative_papers[0], paper_id: 3, year: 2023 },
+        ],
+      },
+    })
+    const wrapper = mount(TopicInspectorDrawer, { props: { keyword: "transformer", open: true } })
+
+    await flushPromises()
+
+    expect(wrapper.findAll(".year-bar")).toHaveLength(2)
+    expect(wrapper.text()).not.toContain("暂无年度轨迹")
+  })
+
+  it("keeps annual bar heights proportional instead of collapsing to the minimum height", async () => {
+    inspector.mockResolvedValue({
+      data: {
+        ...payload,
+        year_series: [
+          { year: 2023, papers: 1 },
+          { year: 2024, papers: 10 },
+        ],
+      },
+    })
+    const wrapper = mount(TopicInspectorDrawer, { props: { keyword: "transformer", open: true } })
+
+    await flushPromises()
+
+    expect(wrapper.findAll(".year-track")).toHaveLength(2)
+    expect(wrapper.findAll(".year-track .year-fill")[0].attributes("style")).toContain("height: 10%")
+    expect(wrapper.findAll(".year-track .year-fill")[1].attributes("style")).toContain("height: 100%")
+  })
+
 
   it("traps Tab navigation inside the drawer", async () => {
     inspector.mockResolvedValue({ data: payload })

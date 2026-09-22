@@ -13,7 +13,7 @@ vi.mock("axios", () => ({
   },
 }))
 
-import { papersApi } from "./api"
+import { papersApi, statsApi } from "./api"
 
 describe("papersApi long-running requests", () => {
   beforeEach(() => {
@@ -38,5 +38,26 @@ describe("papersApi long-running requests", () => {
       expect.any(FormData),
       { timeout: 600_000 },
     )
+  })
+
+  it("allows enough time for topic inspector aggregation", async () => {
+    await statsApi.inspector("Object Detection", "area")
+
+    expect(api.client.get).toHaveBeenCalledWith(
+      "/stats/topics/Object%20Detection/inspector",
+      { params: { scope: "area" }, timeout: 60_000 },
+    )
+  })
+
+  it("allows enough time for homepage statistics", async () => {
+    const params = { conference: "CVPR" }
+
+    await statsApi.overview(params)
+    await statsApi.topics(params)
+    await statsApi.graph(params)
+
+    expect(api.client.get).toHaveBeenNthCalledWith(1, "/stats/overview", { params, timeout: 60_000 })
+    expect(api.client.get).toHaveBeenNthCalledWith(2, "/stats/topics", { params, timeout: 60_000 })
+    expect(api.client.get).toHaveBeenNthCalledWith(3, "/stats/graph", { params, timeout: 60_000 })
   })
 })

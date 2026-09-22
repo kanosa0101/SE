@@ -37,11 +37,11 @@
         <section class="drawer-section">
           <div class="section-heading"><span>年度轨迹</span><span class="mono dim">论文数</span></div>
           <div class="year-bars">
-            <div v-for="item in details.year_series" :key="item.year" class="year-bar" :title="`${item.year}: ${item.papers} 篇`">
-              <span class="year-fill" :style="{ height: `${barWidth(item.papers, maxYear)}%` }" />
+            <div v-for="item in yearSeries" :key="item.year" class="year-bar" :title="`${item.year}: ${item.papers} 篇`">
+              <span class="year-track"><span class="year-fill" :style="{ height: `${barWidth(item.papers, maxYear)}%` }" /></span>
               <small>{{ item.year }}</small>
             </div>
-            <p v-if="!details.year_series.length" class="muted">暂无年度轨迹。</p>
+            <p v-if="!yearSeries.length" class="muted">暂无年度轨迹。</p>
           </div>
         </section>
 
@@ -91,7 +91,20 @@ const loadRequestId = ref(0)
 const drawerElement = ref(null)
 const restoreFocusElement = ref(null)
 const maxConference = computed(() => Math.max(1, ...(details.value?.conference_breakdown || []).map((item) => Number(item.papers) || 0)))
-const maxYear = computed(() => Math.max(1, ...(details.value?.year_series || []).map((item) => Number(item.papers) || 0)))
+const yearSeries = computed(() => {
+  const supplied = details.value?.year_series
+  if (Array.isArray(supplied) && supplied.length) return supplied
+  const counts = new Map()
+  for (const paper of details.value?.representative_papers || []) {
+    const year = Number(paper.year)
+    if (!Number.isFinite(year)) continue
+    counts.set(year, (counts.get(year) || 0) + 1)
+  }
+  return [...counts.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([year, papers]) => ({ year, papers }))
+})
+const maxYear = computed(() => Math.max(1, ...yearSeries.value.map((item) => Number(item.papers) || 0)))
 
 function barWidth(value, maximum) {
   const numeric = Number(value) || 0
@@ -221,8 +234,9 @@ onMounted(() => {
 .bar-fill { display: block; height: 100%; border-radius: inherit; }
 .cyan-fill { background: var(--cyan); box-shadow: 0 0 10px rgba(76, 215, 246, .35); }
 .year-bars { display: flex; align-items: end; gap: 8px; min-height: 104px; padding-top: 12px; }
-.year-bar { display: grid; min-width: 28px; height: 88px; flex: 1; align-content: end; gap: 6px; text-align: center; }
-.year-fill { display: block; min-height: 4px; border-radius: 3px 3px 0 0; background: var(--green); box-shadow: 0 0 12px rgba(78, 222, 163, .25); }
+.year-bar { display: flex; min-width: 28px; height: 88px; flex: 1; flex-direction: column; align-items: stretch; justify-content: flex-end; gap: 6px; text-align: center; }
+.year-track { display: flex; width: 100%; min-height: 0; flex: 1; align-items: flex-end; }
+.year-fill { display: block; width: 100%; min-height: 4px; border-radius: 3px 3px 0 0; background: var(--green); box-shadow: 0 0 12px rgba(78, 222, 163, .25); }
 .year-bar small { color: var(--text-dim); font: 9px var(--mono); }
 .related-list { display: flex; flex-wrap: wrap; gap: 7px; }
 .related-chip { display: inline-flex; align-items: center; gap: 7px; padding: 7px 9px; border: 1px solid var(--outline-variant); border-radius: var(--radius-sm); background: var(--surface-container-low); color: var(--text-soft); font: 11px var(--mono); }

@@ -12,6 +12,7 @@ from app.services.keywords import canonical_research_area, normalize_keyword, re
 from app.services.metrics import build_topic_inspector, calculate_heat
 
 router = APIRouter(prefix="/api/stats", tags=["statistics"])
+GRAPH_NODE_LIMIT = 32
 
 
 def _paper_conditions(conference: str | None, year_from: int | None, year_to: int | None):
@@ -144,7 +145,7 @@ def _cooccurrence_graph_sql(db: Session, conference: str | None, year_from: int 
         .where(*conditions)
         .group_by(Keyword.name)
         .order_by(desc("papers"), Keyword.name)
-        .limit(50)
+        .limit(GRAPH_NODE_LIMIT)
     ).all()
     if not top:
         return {"nodes": [], "links": []}
@@ -242,7 +243,6 @@ def topic_inspector(
     db: Session = Depends(get_db),
 ) -> TopicInspector:
     normalized = normalize_keyword(keyword)
-    all_rows = _keyword_rows(db)
     display_name = normalized
     keyword_names = [normalized]
     if scope == "area":
@@ -254,17 +254,64 @@ def topic_inspector(
                 if research_area_for(name) == display_name
             ]
     statement = (
-        select(PaperKeyword.paper_id, Keyword.name, Paper.title, Paper.authors, Paper.abstract, Paper.conference, Paper.year, Paper.source, Paper.source_url)
+        select(PaperKeyword.paper_id, Keyword.name, Paper.conference, Paper.year)
         .join(Keyword, Keyword.id == PaperKeyword.keyword_id)
         .join(Paper, Paper.id == PaperKeyword.paper_id)
         .where(Keyword.name.in_(keyword_names))
     )
     rows = [
-        {"paper_id": paper_id, "keyword": keyword, "title": title, "authors": authors, "abstract": abstract, "conference": venue, "year": year, "source": source, "source_url": source_url}
-        for paper_id, keyword, title, authors, abstract, venue, year, source, source_url in db.execute(statement).all()
+        {"paper_id": paper_id, "keyword": keyword, "conference": venue, "year": year}
+        for paper_id, keyword, venue, year in db.execute(statement).all()
     ]
     if not rows:
         raise HTTPException(status_code=404, detail="主题不存在")
+
+    # 统计只需轻量字段；详情字段只为最终展示的 6 篇代表论文读取一次，
+    # 避免同一篇论文的摘要随多个关键词关联行重复从数据库传回。
+    selected_paper_ids = {row["paper_id"] for row in rows}
+    representative_ids: list[int] = []
+    representative_seen: set[int] = set()
+    for row in sorted(rows, key=lambda item: (-item["year"], item["paper_id"])):
+        if row["paper_id"] in representative_seen:
+            continue
+        representative_seen.add(row["paper_id"])
+        representative_ids.append(row["paper_id"])
+        if len(representative_ids) == 6:
+            break
+    detail_statement = select(
+        Paper.id,
+        Paper.title,
+        Paper.authors,
+        Paper.abstract,
+        Paper.source,
+        Paper.source_url,
+    ).where(Paper.id.in_(representative_ids))
+    details_by_id = {
+        paper_id: {
+            "title": title,
+            "authors": authors,
+            "abstract": abstract,
+            "source": source,
+            "source_url": source_url,
+        }
+        for paper_id, title, authors, abstract, source, source_url in db.execute(detail_statement).all()
+    }
+    for row in rows:
+        details = details_by_id.get(row["paper_id"])
+        if details:
+            row.update(details)
+
+    # 相关关键词只需要当前主题覆盖到的论文；不要为一次详情请求扫描整张关联表。
+    related_statement = (
+        select(PaperKeyword.paper_id, Keyword.name, Paper.conference, Paper.year)
+        .join(Keyword, Keyword.id == PaperKeyword.keyword_id)
+        .join(Paper, Paper.id == PaperKeyword.paper_id)
+        .where(PaperKeyword.paper_id.in_(selected_paper_ids))
+    )
+    all_rows = [
+        {"paper_id": paper_id, "keyword": related_keyword, "conference": venue, "year": year}
+        for paper_id, related_keyword, venue, year in db.execute(related_statement).all()
+    ]
     total = db.scalar(select(func.count(Paper.id))) or 0
     return build_topic_inspector(rows, display_name, total, all_rows)
 

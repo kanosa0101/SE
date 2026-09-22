@@ -5,7 +5,7 @@
         {{ strongOnly ? "显示全部关系" : "仅看强关系" }}
       </button>
       <span class="legend-note">
-        默认只显示共现 ≥ {{ STRONG_EDGE_THRESHOLD }} 篇的强关系（约前 10%）；连线粗细与深浅 ∝ 共现论文数（当前 {{ edgeRange.min }}—{{ edgeRange.max }} 篇，平方根映射）
+        默认只显示共现 ≥ {{ STRONG_EDGE_THRESHOLD }} 篇的关系；节点透明度与连线粗细、深浅均按论文数映射（边 {{ edgeRange.min }}—{{ edgeRange.max }} 篇）
       </span>
     </div>
     <div ref="chartElement" class="graph-canvas" aria-label="关键词共现关系图" />
@@ -16,7 +16,7 @@
 import * as echarts from "../utils/echarts"
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 
-import { edgeVisual, STRONG_EDGE_THRESHOLD } from "../utils/graph"
+import { edgeVisual, nodeColor, nodeVisual, STRONG_EDGE_THRESHOLD } from "../utils/graph"
 
 const props = defineProps({
   graph: { type: Object, default: () => ({ nodes: [], links: [] }) },
@@ -30,6 +30,11 @@ let observer
 const edgeRange = computed(() => {
   const values = (props.graph.links || []).map((link) => Number(link.value) || 0)
   return { min: values.length ? Math.min(...values) : 0, max: values.length ? Math.max(...values) : 0 }
+})
+
+const nodeRange = computed(() => {
+  const values = (props.graph.nodes || []).map((node) => Number(node.value) || 0)
+  return { max: values.length ? Math.max(...values) : 0 }
 })
 
 // ECharts force 布局在高边密度下会震荡发散，这里用固定迭代的
@@ -88,10 +93,11 @@ function renderGraph() {
   if (!chart) return
   const width = chartElement.value?.clientWidth || 640
   const height = chartElement.value?.clientHeight || 420
+  const maxNodeValue = nodeRange.value.max
   const nodes = (props.graph.nodes || []).map((node) => ({
     ...node,
     symbolSize: Math.max(9, Math.min(30, 6 + Number(node.value || 0) * 0.09)),
-    itemStyle: { color: node.name.includes("diffusion") ? "#fbbf24" : "#22d3ee" },
+    itemStyle: { color: nodeColor(node.value, maxNodeValue), ...nodeVisual(node.value, maxNodeValue) },
   }))
   const maxValue = edgeRange.value.max
   // 布局始终基于完整边集计算，过滤只决定画哪些边——
@@ -127,6 +133,10 @@ function renderGraph() {
       draggable: true,
       label: { show: true, color: "#dbeafe", fontSize: 10 },
       lineStyle: { color: "#64748b", opacity: 0.3, width: 1, curveness: 0 },
+      emphasis: {
+        focus: "adjacency",
+        lineStyle: { color: "#fbbf24", opacity: 1, width: 4 },
+      },
     }],
   }, true)
 }

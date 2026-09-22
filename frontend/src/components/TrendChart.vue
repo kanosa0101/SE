@@ -40,10 +40,10 @@ function renderChart() {
   chart.setOption({
     color: ["#4cd7f6", "#ffb95f", "#4edea3", "#ffb4ab"],
     tooltip: { trigger: "axis" },
-    legend: { top: 4, textStyle: { color: "#bcc9cd" } },
-    grid: { left: 48, right: 22, top: 48, bottom: 32 },
+    legend: { type: "scroll", top: 4, left: 82, right: 8, textStyle: { color: "#bcc9cd" } },
+    grid: { left: 74, right: 22, top: 60, bottom: 32, containLabel: true },
     xAxis: { type: "category", data: visibleYears, axisLabel: { color: "#869397" }, axisLine: { lineStyle: { color: "#3d494c" } } },
-    yAxis: { type: "value", name: "热度 / 1000篇", nameTextStyle: { color: "#869397" }, axisLabel: { color: "#869397" }, splitLine: { lineStyle: { color: "rgba(134,147,151,.12)" } } },
+    yAxis: { type: "value", name: "热度 / 1000篇", nameLocation: "middle", nameGap: 42, nameRotate: 90, nameTextStyle: { color: "#869397" }, axisLabel: { color: "#869397" }, splitLine: { lineStyle: { color: "rgba(134,147,151,.12)" } } },
     series: (props.payload.series || []).slice(0, 8).map((series) => ({
       name: series.keyword,
       type: "line",
