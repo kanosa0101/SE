@@ -6,6 +6,8 @@ CVInsight 面向计算机视觉领域论文分析，支持 CVPR、ICCV、ECCV �
 
 项目采用 Vue 3 + FastAPI + SQLite 实现，爬虫模块负责获取和清洗 CVF 公开论文元数据，后端提供统计接口，前端负责页面交互和可视化展示。
 
+本项目对应[软件工程实践第二次作业](https://bbs.csdn.net/topics/620526318)，学号 102400330。论文数据来自 CVF 公开页面及仓库内 `data/cvf_pre2022.csv`、`data/cvf_2022_2025_full.csv`；AI 编程助手用于需求梳理、代码建议、测试和调试。
+
 ## 部署信息
 
 ### Docker Compose 部署

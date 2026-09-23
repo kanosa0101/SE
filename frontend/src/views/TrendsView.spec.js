@@ -42,4 +42,43 @@ describe("TrendsView", () => {
     await flushPromises()
     expect(api.trends).toHaveBeenLastCalledWith({})
   })
+
+  it("offers returned research directions for animated comparison", async () => {
+    api.trends.mockResolvedValue({
+      data: {
+        years: [2023, 2024],
+        series: [
+          { keyword: "Video Understanding", data: [{ conference: "CVPR", year: 2023, heat: 20 }] },
+          { keyword: "Segmentation", data: [{ conference: "ICCV", year: 2023, heat: 30 }] },
+        ],
+      },
+    })
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: "/trends", name: "trends", component: TrendsView }],
+    })
+    await router.push({ name: "trends" })
+
+    const wrapper = mount(TrendsView, {
+      global: {
+        plugins: [router],
+        stubs: {
+          AppShell: { template: "<div><slot /></div>" },
+          EvolutionPanel: true,
+          TrendChart: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    const directionSelect = wrapper.get("select[aria-label='研究方向']")
+    expect(directionSelect.findAll("option").map((option) => option.text())).toEqual([
+      "Video Understanding",
+      "Segmentation",
+    ])
+    expect(directionSelect.element.value).toBe("Video Understanding")
+
+    await directionSelect.setValue("Segmentation")
+    expect(directionSelect.element.value).toBe("Segmentation")
+  })
 })

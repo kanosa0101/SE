@@ -17,6 +17,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
 const props = defineProps({
   payload: { type: Object, default: () => ({ years: [], series: [] }) },
   conference: { type: String, default: "" },
+  keyword: { type: String, default: "" },
 })
 const chartElement = ref(null)
 const playing = ref(false)
@@ -27,30 +28,34 @@ let timer
 
 const activeYear = computed(() => props.payload.years?.[activeIndex.value] || "")
 
-function valueFor(series, year) {
-  const values = (series.data || []).filter((row) => row.year === year && (!props.conference || row.conference === props.conference))
-  if (!values.length) return null
-  return values.reduce((sum, item) => sum + Number(item.heat || 0), 0) / values.length
-}
-
 function renderChart() {
   if (!chart) return
   const years = props.payload.years || []
   const visibleYears = years.slice(0, Math.max(1, activeIndex.value + 1))
+  const selected = (props.payload.series || []).find((series) => series.keyword === props.keyword)
+    || (props.payload.series || [])[0]
+  const conferences = props.conference ? [props.conference] : ["CVPR", "ICCV", "ECCV"]
+  const colors = { CVPR: "#4cd7f6", ICCV: "#ffb95f", ECCV: "#4edea3" }
+  const lineTypes = { CVPR: "solid", ICCV: "dashed", ECCV: "dotted" }
   chart.setOption({
-    color: ["#4cd7f6", "#ffb95f", "#4edea3", "#ffb4ab"],
+    color: conferences.map((venue) => colors[venue]),
     tooltip: { trigger: "axis" },
     legend: { type: "scroll", top: 4, left: 82, right: 8, textStyle: { color: "#bcc9cd" } },
     grid: { left: 74, right: 22, top: 60, bottom: 32, containLabel: true },
     xAxis: { type: "category", data: visibleYears, axisLabel: { color: "#869397" }, axisLine: { lineStyle: { color: "#3d494c" } } },
     yAxis: { type: "value", name: "热度 / 1000篇", nameLocation: "middle", nameGap: 42, nameRotate: 90, nameTextStyle: { color: "#869397" }, axisLabel: { color: "#869397" }, splitLine: { lineStyle: { color: "rgba(134,147,151,.12)" } } },
-    series: (props.payload.series || []).slice(0, 8).map((series) => ({
-      name: series.keyword,
+    series: selected ? conferences.map((venue) => ({
+      name: venue,
       type: "line",
       smooth: true,
-      connectNulls: true,
-      data: visibleYears.map((year) => valueFor(series, year)),
-    })),
+      connectNulls: false,
+      lineStyle: { type: lineTypes[venue], width: 2.5 },
+      itemStyle: { color: colors[venue] },
+      data: visibleYears.map((year) => {
+        const value = (selected.data || []).find((row) => row.year === year && row.conference === venue)
+        return value ? Number(value.heat) : null
+      }),
+    })) : [],
   }, true)
 }
 
@@ -86,7 +91,7 @@ onMounted(() => {
   chart = echarts.init(chartElement.value)
   renderChart()
 })
-watch(() => [props.payload, props.conference], () => { activeIndex.value = 0; renderChart() }, { deep: true })
+watch(() => [props.payload, props.conference, props.keyword], () => { activeIndex.value = 0; renderChart() }, { deep: true })
 watch(speed, () => { if (playing.value) startTimer() })
 onBeforeUnmount(() => { stopTimer(); chart?.dispose() })
 </script>

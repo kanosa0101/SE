@@ -1,11 +1,12 @@
 <template>
   <AppShell>
     <div class="page-head">
-      <div><div class="eyebrow">SPECTRUM / TRENDS</div><h1 class="page-title">热度趋势洞察</h1><p class="page-intro">用统一的论文覆盖率口径，比较三大会议中研究方向的年度变化。</p></div>
+      <div><div class="eyebrow">SPECTRUM / TRENDS</div><h1 class="page-title">热度趋势洞察</h1><p class="page-intro">选择研究方向，在统一的论文覆盖率口径下比较三大会议的年度变化。</p></div>
       <div class="status-line"><span class="status-dot" />支持播放、暂停与速度调整</div>
     </div>
     <div class="filter-bar panel">
       <label>会议 <select v-model="conference" class="select"><option value="">全部会议</option><option value="CVPR">CVPR</option><option value="ICCV">ICCV</option><option value="ECCV">ECCV</option></select></label>
+      <label>研究方向 <select v-model="selectedKeyword" class="select" aria-label="研究方向"><option v-for="series in payload.series" :key="series.keyword" :value="series.keyword">{{ series.keyword }}</option></select></label>
       <label>起始年 <input v-model.number="yearFrom" class="field year-field" type="number" min="1990" max="2100" placeholder="不限" /></label>
       <label>结束年 <input v-model.number="yearTo" class="field year-field" type="number" min="1990" max="2100" placeholder="不限" /></label>
       <button class="button secondary" type="button" @click="reset">重置筛选</button>
@@ -13,7 +14,7 @@
     <div v-if="loading" class="loading-box">正在生成年度热度序列……</div>
     <div v-else-if="error" class="error-box">{{ error }} <button class="button secondary retry" type="button" @click="load">重试</button></div>
     <template v-else>
-      <article class="panel chart-panel"><div class="panel-heading"><div><div class="eyebrow">HEAT / TIME SERIES</div><h2>研究方向年度热度轨迹</h2></div><span class="mono dim">单位：每千篇论文覆盖数</span></div><div class="panel-body"><TrendChart :payload="payload" :conference="conference" /></div></article>
+      <article class="panel chart-panel"><div class="panel-heading"><div><div class="eyebrow">HEAT / TIME SERIES</div><h2>研究方向年度热度轨迹</h2></div><span class="mono dim">单位：每千篇论文覆盖数</span></div><div class="panel-body"><TrendChart :payload="payload" :conference="conference" :keyword="selectedKeyword" /></div></article>
       <EvolutionPanel />
       <article class="panel table-panel"><div class="panel-heading"><div><div class="eyebrow">METHOD / DEFINITION</div><h2>如何阅读这张图</h2></div></div><div class="panel-body method-grid"><div><strong>热度</strong><p>某研究方向在会议/年份论文中的覆盖率乘以 1000，减少不同年份样本量差异。</p></div><div><strong>联动</strong><p>切换会议或年份后，图表重新从 SQLite 统计接口读取数据，不使用页面硬编码数字。</p></div><div><strong>边界</strong><p>研究方向由原始关键词或 TF-IDF 结果按固定词元映射得到，来源在论文详情中单独标记。</p></div></div></article>
     </template>
@@ -33,6 +34,7 @@ const route = useRoute()
 const router = useRouter()
 const yearFrom = ref("")
 const yearTo = ref("")
+const selectedKeyword = ref("")
 const payload = ref({ years: [], series: [] })
 const loading = ref(true)
 const error = ref("")
@@ -61,6 +63,9 @@ async function load() {
     const response = await statsApi.trends(params())
     if (requestId !== loadRequestId.value) return
     payload.value = response.data
+    if (!response.data.series.some((series) => series.keyword === selectedKeyword.value)) {
+      selectedKeyword.value = response.data.series[0]?.keyword || ""
+    }
   } catch (cause) {
     if (requestId !== loadRequestId.value) return
     error.value = getErrorMessage(cause, "趋势接口暂时不可用")

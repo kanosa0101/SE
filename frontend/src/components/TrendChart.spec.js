@@ -35,4 +35,39 @@ describe("TrendChart", () => {
 
     wrapper.unmount()
   })
+
+  it("draws separate conference lines for one selected area and leaves missing years empty", async () => {
+    vi.useFakeTimers()
+    const wrapper = mount(TrendChart, {
+      props: {
+        keyword: "Vision-Language & Multimodal",
+        payload: {
+          years: [2023, 2024, 2025],
+          series: [{
+            keyword: "Vision-Language & Multimodal",
+            data: [
+              { conference: "CVPR", year: 2023, heat: 20 },
+              { conference: "ICCV", year: 2023, heat: 30 },
+              { conference: "CVPR", year: 2024, heat: 40 },
+              { conference: "CVPR", year: 2025, heat: 50 },
+              { conference: "ICCV", year: 2025, heat: 60 },
+            ],
+          }],
+        },
+      },
+    })
+
+    await wrapper.get("button").trigger("click")
+    await vi.advanceTimersByTimeAsync(2400)
+
+    const chart = chartApi.init.mock.results[0].value
+    const option = chart.setOption.mock.calls.at(-1)[0]
+    expect(option.series.map((series) => series.name)).toEqual(["CVPR", "ICCV", "ECCV"])
+    expect(option.series.find((series) => series.name === "CVPR").data).toEqual([20, 40, 50])
+    expect(option.series.find((series) => series.name === "ICCV").data).toEqual([30, null, 60])
+    expect(option.series.find((series) => series.name === "ECCV").data).toEqual([null, null, null])
+    expect(option.series[0].connectNulls).toBe(false)
+    wrapper.unmount()
+    vi.useRealTimers()
+  })
 })
