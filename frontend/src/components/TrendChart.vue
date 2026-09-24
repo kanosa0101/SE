@@ -38,7 +38,6 @@ function renderChart() {
     ? [props.conference]
     : ["CVPR", "ICCV", "ECCV"]
   const colors = { CVPR: "#4cd7f6", ICCV: "#ffb95f", ECCV: "#4edea3" }
-  const lineTypes = { CVPR: "solid", ICCV: "dashed", ECCV: "dotted" }
   chart.setOption({
     color: conferences.map((venue) => colors[venue]),
     tooltip: { trigger: "axis" },
@@ -51,7 +50,7 @@ function renderChart() {
       type: "line",
       smooth: true,
       connectNulls: true,
-      lineStyle: { type: lineTypes[venue], width: 2.5 },
+      lineStyle: { type: "solid", width: 2.5 },
       itemStyle: { color: colors[venue] },
       data: visibleYears.map((year) => {
         const value = (selected.data || []).find((row) => row.year === year && row.conference === venue)

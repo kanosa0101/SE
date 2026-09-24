@@ -63,6 +63,7 @@ describe("TrendChart", () => {
     const chart = chartApi.init.mock.results[0].value
     const option = chart.setOption.mock.calls.at(-1)[0]
     expect(option.series.map((series) => series.name)).toEqual(["CVPR", "ICCV", "ECCV"])
+    expect(option.series.map((series) => series.lineStyle.type)).toEqual(["solid", "solid", "solid"])
     expect(option.series.find((series) => series.name === "CVPR").data).toEqual([20, 40, 50])
     expect(option.series.find((series) => series.name === "ICCV").data).toEqual([30, null, 60])
     expect(option.series.find((series) => series.name === "ECCV").data).toEqual([null, null, null])
