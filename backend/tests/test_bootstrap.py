@@ -41,3 +41,36 @@ def test_bootstrap_imports_multiple_files_once(tmp_path):
     assert bootstrap_database(engine, [first, second]) is False
     with session_factory(engine)() as session:
         assert session.scalar(select(func.count()).select_from(Paper)) == 2
+
+
+def test_bootstrap_adds_new_source_to_existing_database_once(tmp_path):
+    from app.services.bootstrap import bootstrap_database
+
+    initial = tmp_path / "initial.csv"
+    supplemental = tmp_path / "eccv_supplement.csv"
+    initial.write_text(
+        "title,conference,year,keywords\n"
+        "Existing Paper,CVPR,2024,vision\n",
+        encoding="utf-8",
+    )
+    supplemental.write_text(
+        "title,conference,year,abstract,keywords,source_url\n"
+        "New ECCV Paper,ECCV,2022,An abstract about vision,vision,https://example.org/paper\n",
+        encoding="utf-8",
+    )
+    engine = make_engine(f"sqlite:///{tmp_path / 'incremental.db'}")
+    init_db(engine)
+
+    assert bootstrap_database(engine, [initial]) is True
+    assert bootstrap_database(engine, [initial, supplemental]) is True
+    with session_factory(engine)() as session:
+        assert session.scalar(select(func.count()).select_from(Paper)) == 2
+        paper = session.scalar(select(Paper).where(Paper.conference == "ECCV"))
+        assert paper is not None
+        assert paper.year == 2022
+        assert paper.abstract == "An abstract about vision"
+        assert paper.source_url == "https://example.org/paper"
+
+    assert bootstrap_database(engine, [initial, supplemental]) is False
+    with session_factory(engine)() as session:
+        assert session.scalar(select(func.count()).select_from(Paper)) == 2

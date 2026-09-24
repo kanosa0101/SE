@@ -19,7 +19,7 @@ describe("TrendsView", () => {
     api.trends.mockResolvedValue({ data: { years: [], series: [] } })
   })
 
-  it("uses the global conference query and reloads when it changes", async () => {
+  it("defaults to CVPR when the conference query is absent", async () => {
     const router = createRouter({
       history: createMemoryHistory(),
       routes: [{ path: "/trends", name: "trends", component: TrendsView }],
@@ -40,7 +40,40 @@ describe("TrendsView", () => {
 
     await router.push({ name: "trends", query: {} })
     await flushPromises()
+    expect(api.trends).toHaveBeenLastCalledWith({ conference: "CVPR" })
+  })
+
+  it("supports all conferences explicitly and resets to CVPR", async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: "/trends", name: "trends", component: TrendsView }],
+    })
+    await router.push({ name: "trends" })
+
+    const wrapper = mount(TrendsView, {
+      global: {
+        plugins: [router],
+        stubs: {
+          AppShell: { template: "<div><slot /></div>" },
+          EvolutionPanel: true,
+          TrendChart: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    const conferenceSelect = wrapper.get(".filter-bar select")
+    expect(conferenceSelect.element.value).toBe("CVPR")
+    expect(conferenceSelect.findAll("option").map((option) => option.element.value)).toContain("ALL")
+
+    await conferenceSelect.setValue("ALL")
+    await flushPromises()
     expect(api.trends).toHaveBeenLastCalledWith({})
+
+    await wrapper.get("button").trigger("click")
+    await flushPromises()
+    expect(conferenceSelect.element.value).toBe("CVPR")
+    expect(api.trends).toHaveBeenLastCalledWith({ conference: "CVPR" })
   })
 
   it("offers returned research directions for animated comparison", async () => {

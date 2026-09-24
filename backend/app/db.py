@@ -27,7 +27,7 @@ def make_engine(database_url: str) -> Engine:
 
 
 def init_db(engine: Engine) -> None:
-    from app.models import Paper, PaperKeyword
+    from app.models import BootstrapSource, Paper, PaperKeyword
 
     Base.metadata.create_all(engine)
     with engine.begin() as connection:
@@ -47,7 +47,7 @@ def init_db(engine: Engine) -> None:
             # 统计接口的查询依赖这些索引；create_all 不会给已存在的表补建
             # 索引，这里按表统一同步。
             preparer = connection.dialect.identifier_preparer
-            for model in (Paper, PaperKeyword):
+            for model in (Paper, PaperKeyword, BootstrapSource):
                 table_name = model.__tablename__
                 existing_indexes = {
                     index["name"]

@@ -5,7 +5,7 @@
       <div class="status-line"><span class="status-dot" />支持播放、暂停与速度调整</div>
     </div>
     <div class="filter-bar panel">
-      <label>会议 <select v-model="conference" class="select"><option value="">全部会议</option><option value="CVPR">CVPR</option><option value="ICCV">ICCV</option><option value="ECCV">ECCV</option></select></label>
+      <label>会议 <select v-model="conference" class="select"><option value="ALL">全部会议</option><option value="CVPR">CVPR</option><option value="ICCV">ICCV</option><option value="ECCV">ECCV</option></select></label>
       <label>研究方向 <select v-model="selectedKeyword" class="select" aria-label="研究方向"><option v-for="series in payload.series" :key="series.keyword" :value="series.keyword">{{ series.keyword }}</option></select></label>
       <label>起始年 <input v-model.number="yearFrom" class="field year-field" type="number" min="1990" max="2100" placeholder="不限" /></label>
       <label>结束年 <input v-model.number="yearTo" class="field year-field" type="number" min="1990" max="2100" placeholder="不限" /></label>
@@ -41,7 +41,7 @@ const error = ref("")
 const loadRequestId = ref(0)
 
 const conference = computed({
-  get: () => typeof route.query.conference === "string" ? route.query.conference.toUpperCase() : "",
+  get: () => typeof route.query.conference === "string" && route.query.conference ? route.query.conference.toUpperCase() : "CVPR",
   set: (value) => setConference(value),
 })
 
@@ -53,7 +53,8 @@ async function setConference(value) {
 }
 
 function params() {
-  return Object.fromEntries(Object.entries({ conference: conference.value, year_from: yearFrom.value, year_to: yearTo.value }).filter(([, value]) => value !== "" && value !== null))
+  const selectedConference = conference.value === "ALL" ? "" : conference.value
+  return Object.fromEntries(Object.entries({ conference: selectedConference, year_from: yearFrom.value, year_to: yearTo.value }).filter(([, value]) => value !== "" && value !== null))
 }
 async function load() {
   const requestId = ++loadRequestId.value

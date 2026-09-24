@@ -66,8 +66,34 @@ describe("TrendChart", () => {
     expect(option.series.find((series) => series.name === "CVPR").data).toEqual([20, 40, 50])
     expect(option.series.find((series) => series.name === "ICCV").data).toEqual([30, null, 60])
     expect(option.series.find((series) => series.name === "ECCV").data).toEqual([null, null, null])
-    expect(option.series[0].connectNulls).toBe(false)
+    expect(option.series[0].connectNulls).toBe(true)
     wrapper.unmount()
     vi.useRealTimers()
+  })
+
+  it("shows all three conferences when the all-conferences option is selected", () => {
+    const wrapper = mount(TrendChart, {
+      props: {
+        conference: "ALL",
+        keyword: "Video Understanding",
+        payload: {
+          years: [2023, 2024],
+          series: [{
+            keyword: "Video Understanding",
+            data: [
+              { conference: "CVPR", year: 2023, heat: 12 },
+              { conference: "ICCV", year: 2023, heat: 8 },
+              { conference: "ECCV", year: 2024, heat: 10 },
+            ],
+          }],
+        },
+      },
+    })
+
+    const chart = chartApi.init.mock.results[0].value
+    const option = chart.setOption.mock.calls[0][0]
+    expect(option.series.map((series) => series.name)).toEqual(["CVPR", "ICCV", "ECCV"])
+    expect(option.series.map((series) => series.data)).toEqual([[12], [8], [null]])
+    wrapper.unmount()
   })
 })

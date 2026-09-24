@@ -34,7 +34,9 @@ function renderChart() {
   const visibleYears = years.slice(0, Math.max(1, activeIndex.value + 1))
   const selected = (props.payload.series || []).find((series) => series.keyword === props.keyword)
     || (props.payload.series || [])[0]
-  const conferences = props.conference ? [props.conference] : ["CVPR", "ICCV", "ECCV"]
+  const conferences = props.conference && props.conference !== "ALL"
+    ? [props.conference]
+    : ["CVPR", "ICCV", "ECCV"]
   const colors = { CVPR: "#4cd7f6", ICCV: "#ffb95f", ECCV: "#4edea3" }
   const lineTypes = { CVPR: "solid", ICCV: "dashed", ECCV: "dotted" }
   chart.setOption({
@@ -48,7 +50,7 @@ function renderChart() {
       name: venue,
       type: "line",
       smooth: true,
-      connectNulls: false,
+      connectNulls: true,
       lineStyle: { type: lineTypes[venue], width: 2.5 },
       itemStyle: { color: colors[venue] },
       data: visibleYears.map((year) => {

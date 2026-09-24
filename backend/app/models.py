@@ -58,3 +58,11 @@ class PaperKeyword(Base):
 
     paper: Mapped[Paper] = relationship(back_populates="paper_keywords")
     keyword: Mapped[Keyword] = relationship(back_populates="paper_keywords")
+
+
+class BootstrapSource(Base):
+    __tablename__ = "bootstrap_sources"
+
+    content_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    imported_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
